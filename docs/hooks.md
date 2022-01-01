@@ -23,6 +23,12 @@ title: Hooks
 **MUST** be downloaded and installed by previous hooks.
 - Hooks **SHOULD NOT** use bash or python binaries **MUST** be sh(ash) or self contained/static.
 
+## Hook Installation directory
+
+- Boot hooks **MUST** be installed to `/mnt/data/udm-boot-hooks.d`
+- Container Hooks **MUST** be installed to `/mnt/data/udm-container-hooks.d`
+- If you are using `hookctl` to manage your hooks, permissions and install locations are automatically selected.
+
 ## Incompatibility with `on_boot.d`
 
 - Because Hooks **MUST** be lifecycle aware,

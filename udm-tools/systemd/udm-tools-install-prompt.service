@@ -1,0 +1,13 @@
+[Unit]
+Description=A bit fancier shell prompt and shell profile setup on host
+Wants=network-online.target
+After=network-online.target
+Documentation=https://udm-tools.prasadt.com/services
+
+[Service]
+Type=oneshot
+ExecStart=scp -p "$(cat /etc/unifi-os/ssh_proxy_port)" -o StrictHostKeyChecking=no -q /usr/share/udm-tools/prompt/prompt.sh root@localhost:/etc/profile.d/20-udm-tools-install-prompt.sh
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target

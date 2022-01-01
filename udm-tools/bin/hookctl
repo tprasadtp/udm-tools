@@ -1,0 +1,1127 @@
+#!/bin/sh
+# Copyright (c) 2021, Prasad Tengse
+# shellcheck disable=SC2034,SC2155,SC2039
+
+# Script Constants
+CURDIR="$(cd -P -- "$(dirname -- "")" && pwd -P)"
+SCRIPT="$(basename "$0")"
+
+# HOOKS DIRs
+if [ "$CI_TEST_MODE" = "703004ad-3b6c-4baa-84c5-868dd09acd06" ]; then
+    BOOT_HOOKS_DIR="/tmp/703004ad-3b6c-4baa-84c5-868dd09acd06.boot-hooks.d"
+    CONTAINER_HOOKS_DIR="/tmp/703004ad-3b6c-4baa-84c5-868dd09acd06.container-hooks.d"
+else
+    BOOT_HOOKS_DIR="/mnt/data/udm-boot-hooks.d"
+    CONTAINER_HOOKS_DIR="/mnt/data/udm-container-hooks.d"
+fi
+
+# Handle Signals
+# trap ctrl-c and TERM
+trap ctrl_c_signal_handler INT
+trap term_signal_handler TERM
+
+ctrl_c_signal_handler() {
+    log_error "User Interrupt! CTRL-C"
+    exit 4
+}
+
+term_signal_handler() {
+    log_error "Signal Interrupt! SIGTERM"
+    exit 4
+}
+
+#diana::snippet:shlib-logger:begin#
+# shellcheck shell=sh
+# shellcheck disable=SC3043
+
+# SHELL LOGGING LIBRARY
+# See https://github.com/tprasadtp/shlibs/logger/README.md
+# If included in other files, contents between snippet markers
+# might automatically be updated (depending on who manages it)
+# and all changes between markers might be ignored.
+
+# Logger core ::internal::
+# This function should NOT be called directly.
+__logger_core_event_handler() {
+    [ "$#" -lt 2 ] && return 1
+
+    local lvl_caller="${1:-info}"
+
+    # Logging levels are similar to python's logging levels
+    case ${lvl_caller} in
+    trace)
+        level="0"
+        ;;
+    debug)
+        level="10"
+        ;;
+    info)
+        level="20"
+        ;;
+    success)
+        level="20"
+        ;;
+    notice)
+        level="25"
+        ;;
+    warning)
+        level="30"
+        ;;
+    error)
+        level="40"
+        ;;
+    critical)
+        level="50"
+        ;;
+    *)
+        level="100"
+        ;;
+    esac
+
+    # Immediately return if log level is not enabled
+    # If LOG_LVL is not set, defaults to 20 - info level
+    [ "${LOG_LVL:-20}" -gt "${level}" ] && return
+
+    shift
+    local lvl_msg="$*"
+
+    # Detect whether to coloring is disabled based on env variables,
+    # and if output Terminal is intractive.
+    # This supports following standards.
+    #  - https://bixense.com/clicolors/
+    #  - https://no-color.org/
+
+    local lvl_color
+    local lvl_colorized
+    local lvl_color_reset
+
+    # Forces colored logs
+    # - if CLICOLOR_FORCE is set and is not zero
+    if [ -n "${CLICOLOR_FORCE}" ] && [ "${CLICOLOR_FORCE}" != "0" ]; then
+        lvl_colorized="true"
+        # shellcheck disable=SC2155
+        lvl_color_reset="\e[0m"
+
+    # Disable colors if one of the conditions are true
+    # - CLICOLOR = 0
+    # - NO_COLOR is set to non empty value
+    # - TERM is set to dumb
+    elif [ -n "${NO_COLOR}" ] || [ "${CLICOLOR}" = "0" ] || [ "${TERM}" = "dumb" ]; then
+        lvl_colorized="false"
+
+    # Enable colors if not already disabled or forced and terminal is interactive
+    elif [ -t 1 ] && [ -t 2 ]; then
+        lvl_colorized="true"
+        # shellcheck disable=SC2155
+        lvl_color_reset="\e[0m"
+    fi
+
+    # Level name in string format
+    local lvl_prefix
+    # Level name in string format with timestamp if enabled or level symbol
+    local lvl_string
+
+    # Log format
+    if [ "${LOG_FMT:-pretty}" = "pretty" ] && [ "${lvl_colorized}" = "true" ]; then
+        lvl_string="•"
+    elif [ "${LOG_FMT}" = "full" ] || [ "${LOG_FMT}" = "long" ]; then
+        # shellcheck disable=SC2155
+        lvl_prefix="$(date --rfc-3339=s) "
+    fi
+
+    # Define level, color and timestamp
+    # By default we do not show log level and timestamp.
+    # However, if LOG_FMT is set to "full" or "long",
+    # we will enable long format with timestamps
+    case "$lvl_caller" in
+    trace)
+        # if lvl_string is set earlier, that means LOG_FMT is default or pretty
+        # we dont display timestamp or level name in this case. otherwise
+        # append level name to lvl_prefix
+        # (lvl_prefix is populated with timestamp if LOG_FMT is full or long)
+        [ -z "${lvl_string}" ] && lvl_string="${lvl_prefix}[TRACE   ]"
+        [ "${lvl_colorized}" = "true" ] && lvl_color="\e[38;5;246m"
+        ;;
+    debug)
+        [ -z "${lvl_string}" ] && lvl_string="${lvl_prefix}[DEBUG   ]"
+        [ "${lvl_colorized}" = "true" ] && lvl_color="\e[38;5;250m"
+        ;;
+    info)
+        [ -z "${lvl_string}" ] && lvl_string="${lvl_prefix}[INFO    ]"
+        # Avoid printing color reset sequence as this level is not colored
+        [ "${lvl_colorized}" = "true" ] && lvl_color_reset=""
+        ;;
+    success)
+        [ -z "${lvl_string}" ] && lvl_string="${lvl_prefix}[INFO    ]"
+        [ "${lvl_colorized}" = "true" ] && lvl_color="\e[38;5;83m"
+        ;;
+    notice)
+        [ -z "${lvl_string}" ] && lvl_string="${lvl_prefix}[NOTICE  ]"
+        # shellcheck disable=SC2155
+        [ "${lvl_colorized}" = "true" ] && lvl_color="\e[38;5;81m"
+        ;;
+    warning)
+        [ -z "${lvl_string}" ] && lvl_string="${lvl_prefix}[WARNING ]"
+        # shellcheck disable=SC2155
+        [ "${lvl_colorized}" = "true" ] && lvl_color="\e[38;5;214m"
+        ;;
+    error)
+        [ -z "${lvl_string}" ] && lvl_string="${lvl_prefix}[ERROR   ]"
+        # shellcheck disable=SC2155
+        [ "${lvl_colorized}" = "true" ] && lvl_color="\e[38;5;197m"
+        ;;
+    critical)
+        [ -z "${lvl_string}" ] && lvl_string="${lvl_prefix}[CRITICAL]"
+        # shellcheck disable=SC2155
+        [ "${lvl_colorized}" = "true" ] && lvl_color="\e[38;5;196m"
+        ;;
+    *)
+        [ -z "${lvl_string}" ] && lvl_string="${lvl_prefix}[UNKNOWN ]"
+        # Avoid printing color reset sequence as this level is not colored
+        [ "${lvl_colorized}" = "true" ] && lvl_color_reset=""
+        ;;
+    esac
+
+    # By default logs are written to stderr
+    case "${LOG_TO_STDOUT:-false}" in
+    true | True | TRUE | Yes | yes | YES | 1)
+        printf "${lvl_color}%s %s ${lvl_color_reset}\n" "${lvl_string}" "$lvl_msg"
+        ;;
+    *)
+        printf "${lvl_color}%s %s ${lvl_color_reset}\n" "${lvl_string}" "$lvl_msg" 1>&2
+        ;;
+    esac
+}
+
+# Leveled Loggers
+log_trace() {
+    __logger_core_event_handler "trace" "$@"
+}
+
+log_debug() {
+    __logger_core_event_handler "debug" "$@"
+}
+
+log_info() {
+    __logger_core_event_handler "info" "$@"
+}
+
+log_success() {
+    __logger_core_event_handler "success" "$@"
+}
+
+log_warning() {
+    __logger_core_event_handler "warning" "$@"
+}
+
+log_warn() {
+    __logger_core_event_handler "warning" "$@"
+}
+
+log_notice() {
+    __logger_core_event_handler "notice" "$@"
+}
+
+log_error() {
+    __logger_core_event_handler "error" "$@"
+}
+
+log_critical() {
+    __logger_core_event_handler "critical" "$@"
+}
+
+# For logging command outputs
+# Pipe output of your command to this function
+# This is EXPERIMENTAL FEATURE!!
+# If used without a pipe causes script to hang!
+# - Accepts one optioanl argument.
+#  ARG 1 (str) - msg prefix, this will be prefixed with every line of output
+log_tail() {
+    local line prefix
+    [ -n "$1" ] && prefix="($1) "
+    while read -r line; do
+        __logger_core_event_handler "trace" "$prefix$line"
+    done
+}
+#diana::snippet:shlib-logger:end#
+
+display_usage() {
+    cat <<EOT
+UDM Hooks Manager
+
+Usage: hookctl [GLOBAL-OPTIONS] HOOK_TYPE SUB-COMMAND [HOOK]
+
+Hooks Type:
+    boot              manage boot hooks
+    container         manage container hooks
+
+Global Options:
+  -h, --help          Display this help message
+
+Examples:
+  ${SCRIPT} --help
+  ${SCRIPT} boot --help
+  ${SCRIPT} boot install /tmp/my-hook
+  ${SCRIPT} boot install https://localhost/my-hook
+  ${SCRIPT} container disable my-hook
+  ${SCRIPT} container remove /mnt/data/udm-container-hooks.d/my-hook
+
+Environment:
+  LOG_TO_STDOUT       Set this to 'true' to log to stdout.
+  NO_COLOR            Set this to NON-EMPTY to disable all colors.
+  CLICOLOR_FORCE      Set this to NON-ZERO to force colored output.
+EOT
+}
+
+# Checks if command is available
+__has_command() {
+    if command -v "$1" >/dev/null; then
+        return 0
+    else
+        return 1
+    fi
+    return 1
+}
+
+hookctl_enforce_ubios() {
+    if ! grep -q "UbiOS" /etc/os-release; then
+        if [ "$CI_TEST_MODE" = "703004ad-3b6c-4baa-84c5-868dd09acd06" ]; then
+            log_warn "Not enforcing OS requirements due to CI_TEST_MODE"
+        else
+            log_error "hookctl MUST be executed from UbiOS, not Podman container!"
+            exit 1
+        fi
+    fi
+}
+
+# checks if given input is integer
+is_integer() {
+    case "$1" in
+    "" | *[!0-9]*)
+        return 1
+        ;;
+    *)
+        return 0
+        ;;
+    esac
+}
+
+# Checks if given input is invocaation id
+is_invocation_id() {
+    if printf "%s" "$1" | grep -qE '^[A-Za-f0-9]{16}$'; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+__hooks_dir_present() {
+    local hooks_dir
+    case "$1" in
+    boot)
+        hooks_dir="$BOOT_HOOKS_DIR"
+        ;;
+    container)
+        hooks_dir="$CONTAINER_HOOKS_DIR"
+        ;;
+    *)
+        log_error "Invalid Hook type - ${hook_type}"
+        return 2
+        ;;
+    esac
+
+    if [ -d "$hooks_dir" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Checks if given hook type is present (may not be enabled)
+__is_hook_present() {
+    local hook_type="$1"
+    local hook="$2"
+    local hooks_dir
+
+    if [ -z "$1" ]; then
+        log_critical "Unsupported invoke_mode - ${invoke_mode:-NA}"
+        exit 1
+    fi
+
+    case "$hook_type" in
+    boot)
+        hooks_dir="$BOOT_HOOKS_DIR"
+        ;;
+    container)
+        hooks_dir="$CONTAINER_HOOKS_DIR"
+        ;;
+    *)
+        log_critical "Invalid Hook type - ${hook_type}. Please report this error!"
+        exit 1
+        ;;
+    esac
+
+    if [ -f "$hooks_dir/$hook" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+__is_hook_enabled() {
+    local hook_type="$1"
+    local hook="$2"
+    local hooks_dir
+
+    if [ -z "$hook" ]; then
+        log_critical "__invoke_start called without arguments!"
+        return 255
+    fi
+
+    case "$hook_type" in
+    boot)
+        hooks_dir="$BOOT_HOOKS_DIR"
+        ;;
+    container)
+        hooks_dir="$CONTAINER_HOOKS_DIR"
+        ;;
+    *)
+        log_critical "Invalid Hook type - ${hook_type}. Please report this error!"
+        return 255
+        ;;
+    esac
+    log_debug "Checking if enabled - $hooks_dir/$hook"
+    if [ -x "$hooks_dir/$hook" ] && [ -f "$hooks_dir/$hook" ]; then
+        return 0
+    else
+        return 255
+    fi
+
+}
+
+# Invokes a single hook
+__invoke_hook_core() {
+    local hook_type="$1"
+    local hook="$2"
+    local invoke_mode="$3"
+    local invoke_timeout="${4:-120}"
+    local hooks_dir
+
+    case "$invoke_mode" in
+    start | stop)
+        :
+        ;;
+    *)
+        log_critical "__invoke_start called with invalid invoke_mode - ${invoke_mode:-NA}"
+        return 255
+        ;;
+    esac
+
+    case "$hook_type" in
+    boot)
+        hooks_dir="$BOOT_HOOKS_DIR"
+        ;;
+    container)
+        hooks_dir="$CONTAINER_HOOKS_DIR"
+        ;;
+    *)
+        log_critical "Invalid Hook type - ${hook_type:-NA}. Please report this error!"
+        return 255
+        ;;
+    esac
+
+    if is_integer "$invoke_timeout"; then
+        if [ "$invoke_timeout" -lt 10 ] || [ "$invoke_timeout" -gt 600 ]; then
+            log_critical "__invoke_start called with invalid hook out of bonds timeout (min=10,max=600) - ${invoke_timeout}"
+            return 255
+        fi
+    else
+        log_critical "__invoke_start called with invalid hook timeout - ${invoke_timeout}"
+        return 255
+    fi
+
+    if timeout "$invoke_timeout" "$hooks_dir/$hook" "$invoke_mode" "$hook_type"; then
+        log_success "Invoke type=$hook_type hook=$hook mode=$invoke_mode executed successfully"
+        return 0
+    else
+        log_error "Invoke type=$hook_type hook=$hook mode=$invoke_mode returned non zero exit code"
+        return 255
+    fi
+
+}
+
+__invoke_hook_all() {
+    local hook_type="$1"
+    local invoke_mode="$2"
+    local invoke_timeout="${3:-300}"
+
+    case "$invoke_mode" in
+    start | stop)
+        :
+        ;;
+    *)
+        log_critical "Unsupported invoke_mode - ${invoke_mode:-NA}"
+        exit 2
+        ;;
+    esac
+
+    case "$hook_type" in
+    boot)
+        hooks_dir="$BOOT_HOOKS_DIR"
+        ;;
+    container)
+        hooks_dir="$CONTAINER_HOOKS_DIR"
+        ;;
+    *)
+        log_critical "Invalid Hook type - ${hook_type:-NA}. Please report this error!"
+        exit 1
+        ;;
+    esac
+
+    if is_integer "$invoke_timeout"; then
+        if [ "$invoke_timeout" -lt 10 ] || [ "$invoke_timeout" -gt 600 ]; then
+            log_critical "__invoke_start called with invalid hook out of bonds timeout (min=10,max=600) - ${invoke_timeout}"
+            exit 2
+        fi
+    else
+        log_critical "__invoke_start called with invalid hook timeout - ${invoke_timeout}"
+        exit 2
+    fi
+
+    if __hooks_dir_present "$hook_type"; then
+        # collect all hooks
+        log_info "Collecting hooks type=${hook_type}"
+        local hooks_list
+        hooks_list="$(find "${hooks_dir}" -maxdepth 1 -type f | sort -V)"
+        if [ -z "$hooks_list" ]; then
+            log_warn "No hooks to execute!"
+            return 0
+        else
+            echo "$hooks_list" | while read -r line; do
+                local hook_item="$(basename "$line")"
+                if __is_hook_enabled "$hook_type" "$hook_item"; then
+                    if __invoke_hook_core "$hook_type" "$hook_item" "$invoke_mode" "$invoke_timeout"; then
+                        log_success "Success hook=$hook_item type=$hook_type mode=$invoke_mode"
+                    else
+                        log_error "Failed! hook=$hook_item type=$hook_type mode=$invoke_mode "
+                        break
+                    fi
+                else
+                    log_info "Not enabled hook=$hook_item type=$hook_type"
+                fi
+            done
+
+        fi
+    else
+        # This is not an error, user might not have any hooks!
+        log_warn "Hooks directory not present!"
+        exit 0
+    fi
+
+    exit 2
+
+}
+
+# Invoke a single hook
+__invoke_hook_single() {
+    local hook_type="$1"
+    local invoke_mode="$2"
+    local hook="$3"
+    local invoke_timeout="${4:-300}"
+
+    case "$invoke_mode" in
+    start | stop)
+        :
+        ;;
+    *)
+        log_critical "__invoke_hook_single called with invalid invoke_mode - ${invoke_mode:-NA}"
+        exit 2
+        ;;
+    esac
+
+    case "$hook_type" in
+    boot)
+        hooks_dir="$BOOT_HOOKS_DIR"
+        ;;
+    container)
+        hooks_dir="$CONTAINER_HOOKS_DIR"
+        ;;
+    *)
+        log_critical "Invalid Hook type - ${hook_type:-NA}. Please report this error!"
+        exit 1
+        ;;
+    esac
+
+    if __is_hook_present "$hook_type" "$hook"; then
+        local hook_item="$(basename "$hook")"
+        local hook_item_rc=""
+        if __is_hook_enabled "$hook_type" "$hook"; then
+            if __invoke_hook_core "$hook_type" "$hook_item" "$invoke_mode" "${invoke_timeout}"; then
+                log_success "Success! hook=$hook_item type=$hook_type mode=$hook_mode"
+            else
+                log_error "Failed! hook=$hook_item type=$hook_type mode=$hook_mode"
+                exit 1
+            fi
+        else
+            log_info "Hook not enabled hook=$hook_item type=$hook_type"
+        fi
+    else
+        # This is not an error, user might not have any hooks!
+        log_error "Hook type=$hook_type, hook=$hook is not present!"
+        exit 1
+    fi
+
+}
+
+__display_usage_hooks_shared() {
+    local hook_type="$1"
+
+    case "$hook_type" in
+    boot)
+        hooks_dir="$BOOT_HOOKS_DIR"
+        ;;
+    container)
+        hooks_dir="$CONTAINER_HOOKS_DIR"
+        ;;
+    *)
+        log_error "Invalid Hook type - ${hook_type}. Please report this error!"
+        exit 1
+        ;;
+    esac
+    cat <<EOF
+UDM ${hook_type} Hooks Manager
+
+Usage: hookctl [GLOBAL-OPTIONS] ${hook_type} ACTION [HOOK]
+
+Arguments:
+    ls [status]           List all the hooks
+    rm [HOOK]             Remove ${hook_type} hook
+    install [FILE]        Install ${hook_type} hook
+    disable [HOOK]        Disable ${hook_type} hook
+    enable  [HOOK]        Enable ${hook_type} hook
+    invoke start [HOOK]   Invoke start on single hook
+    invoke stop  [HOOK]   Invoke stop  on single hook
+    invoke-all start      Invoke start on all hooks
+    invoke-all stop       Invoke stop  on all hooks
+
+Global Options:
+  -h, --help          Display this help message
+
+Examples:
+  ${SCRIPT} --help
+  ${SCRIPT} ${hook_type} ls installed
+  ${SCRIPT} ${hook_type} ls enabled
+  ${SCRIPT} ${hook_type} ls disabled
+  ${SCRIPT} ${hook_type} ls all
+
+  ${SCRIPT} ${hook_type} install /tmp/my-hook
+  ${SCRIPT} ${hook_type} enable my-hook
+  ${SCRIPT} ${hook_type} disable ${hooks_dir}/my-hook
+
+  ${SCRIPT} ${hook_type} invoke start my-hook
+  ${SCRIPT} ${hook_type} invoke stop ${hooks_dir}/my-hook
+
+  ${SCRIPT} ${hook_type} invoke-all start
+  ${SCRIPT} ${hook_type} invoke-all stop
+
+Environment:
+  LOG_TO_STDOUT       Set this to 'true' to log to stdout.
+  NO_COLOR            Set this to NON-EMPTY to disable all colors.
+  CLICOLOR_FORCE      Set this to NON-ZERO to force colored output.
+EOF
+}
+
+__list_hooks() {
+    local hook_type
+    local hooks_dir
+
+    case "$1" in
+    boot)
+        hooks_dir="$BOOT_HOOKS_DIR"
+        hook_type="boot"
+        ;;
+    container)
+        hooks_dir="$CONTAINER_HOOKS_DIR"
+        hook_type="container"
+        ;;
+    *)
+        log_error "Invalid Hook type - ${hook_type}"
+        exit 2
+        ;;
+    esac
+
+    local status="${2:-all}"
+    if __hooks_dir_present "$hook_type"; then
+        case "$status" in
+        enabled | e | active)
+            find "$hooks_dir" -maxdepth 1 -type f -executable -exec echo {} \;
+            ;;
+        disabled | d | inactive)
+            find "$hooks_dir" -maxdepth 1 -type f -not -executable -exec echo {} \;
+            ;;
+        all | a)
+            find "$hooks_dir" -maxdepth 1 -type f -exec echo {} \;
+            ;;
+        *)
+            log_error "Invalid state. State can be enabled | disabled | all"
+            exit 1
+            ;;
+        esac
+    else
+        log_warn "Missing ${hook_type} hooks directory - $hooks_dir"
+    fi
+
+}
+
+__remove_hook() {
+    local hook_type="${1:-none}"
+    local hook="${2}"
+    local container_name="${3}"
+    local hooks_dir
+
+    case "$hook_type" in
+    boot)
+        hooks_dir="$BOOT_HOOKS_DIR"
+        ;;
+    container)
+        hooks_dir="$CONTAINER_HOOKS_DIR"
+        ;;
+    *)
+        log_error "Invalid Hook type - ${hook_type}"
+        exit 2
+        ;;
+    esac
+
+    if [ -z "${hook}" ]; then
+        log_error "${hook_type} hook not specified!"
+        display_usage_boot
+        exit 1
+    fi
+
+    case "$hook" in
+    ${hooks_dir}*)
+        :
+        ;;
+    https://* | http://* | file://* | ftp://*)
+        log_error "Remove only supports locally installed hooks."
+        exit 1
+        ;;
+    *)
+        log_debug "Prepending path - $hooks_dir to hook path"
+        hook="$hooks_dir/$hook"
+        ;;
+    esac
+
+    if [ -e "${hook}" ] && [ -f "$hook" ]; then
+        log_info "Removing ${hook_type} hook - $hook"
+        if rm -f "${hook}"; then
+            log_success "Removed ${hook_type} hook - $hook"
+        else
+            log_error "Failed to remove ${hook_type} hook - $hook"
+            exit 1
+        fi
+    else
+        log_error "${hook_type} hook not present - $hook"
+        exit 1
+    fi
+}
+
+__disable_hook() {
+    local hook_type="${1:-none}"
+    local hook="${2}"
+    local hooks_dir
+
+    case "$hook_type" in
+    boot)
+        hooks_dir="$BOOT_HOOKS_DIR"
+        ;;
+    container)
+        hooks_dir="$CONTAINER_HOOKS_DIR"
+        ;;
+    *)
+        log_error "Invalid Hook type - ${hook_type}"
+        exit 2
+        ;;
+    esac
+
+    if [ -z "${hook}" ]; then
+        log_error "${hook_type} hook not specified!"
+        display_usage_boot
+        exit 1
+    fi
+
+    case "$hook" in
+    ${hooks_dir}*)
+        :
+        ;;
+    https://* | http://* | file://* | ftp://*)
+        log_error "disable only supports locally installed hooks."
+        exit 1
+        ;;
+    *)
+        log_debug "Prepending path - $hooks_dir to hook path"
+        hook="$hooks_dir/$hook"
+        ;;
+    esac
+
+    if [ -e "${hook}" ] && [ -f "$hook" ]; then
+        if [ ! -x "$hook" ]; then
+            log_info "${hook_type} hook is already disabled - $hook"
+            exit 0
+        else
+            if chmod -x "${hook}"; then
+                log_success "Disabled ${hook_type} hook - $hook"
+            else
+                log_error "Failed to disable ${hook_type} hook - $hook"
+                exit 1
+            fi
+        fi
+    else
+        log_error "${hook_type} hook not present - $hook"
+        exit 1
+    fi
+}
+
+__enable_hook() {
+    local hook_type="${1:-none}"
+    local hook="${2}"
+    local hooks_dir
+
+    case "$hook_type" in
+    boot)
+        hooks_dir="$BOOT_HOOKS_DIR"
+        ;;
+    container)
+        hooks_dir="$CONTAINER_HOOKS_DIR"
+        ;;
+    *)
+        log_error "Invalid Hook type - ${hook_type}"
+        exit 2
+        ;;
+    esac
+
+    if [ -z "${hook}" ]; then
+        log_error "${hook_type} hook not specified!"
+        display_usage_boot
+        exit 1
+    fi
+
+    case "$hook" in
+    ${hooks_dir}*)
+        :
+        ;;
+    https://* | http://* | file://* | ftp://*)
+        log_error "Enable only supports locally installed hooks."
+        exit 1
+        ;;
+    *)
+        log_debug "Prepending path - $hooks_dir to hook path"
+        hook="$hooks_dir/$hook"
+        ;;
+    esac
+
+    if [ -e "${hook}" ] && [ -f "$hook" ]; then
+        if [ -x "$hook" ]; then
+            log_success "${hook_type} hook is already enabled - $hook"
+            exit 0
+        else
+            if chmod +x "${hook}"; then
+                log_success "Enabled ${hook_type} hook - $hook"
+            else
+                log_error "Failed to enable ${hook_type} hook - $hook"
+                exit 1
+            fi
+        fi
+    else
+        log_error "${hook_type} hook not present - $hook"
+        exit 1
+    fi
+}
+
+__download_hook() {
+    local hook_type="${1:-none}"
+    local hook_url="${2}"
+    local hooks_dl_dir
+
+    case "$hook_type" in
+    boot)
+        hooks_dl_dir="/tmp/703004ad-3b6c-4baa-84c5-868dd09acd06.download.boot-hooks"
+        ;;
+    container)
+        hooks_dl_dir="/tmp/703004ad-3b6c-4baa-84c5-868dd09acd06.download.container-hooks"
+        ;;
+    *)
+        log_error "Invalid Hook type - ${hook_type}"
+        exit 2
+        ;;
+    esac
+
+    case "$hook_url" in
+    https://* | http://*)
+        :
+        ;;
+    *)
+        log_error "Invalid hook url - $hook_url"
+        return 1
+        ;;
+    esac
+
+    local hook_basename
+    hook_basename="$(basename "$hook")"
+
+    local hook_download_file="$hooks_dl_dir/$hook_basename"
+
+    if __has_command wget; then
+        log_info "Fetching via wget - $hook"
+        if [ -e "$hooks_dl_dir" ] && [ ! -d "$hooks_dl_dir" ]; then
+            log_error "Hook download path exists and is not a directory - $hook_tmp_dl_dir"
+            return 1
+        elif [ ! -e "$hooks_dl_dir" ]; then
+            if ! mkdir "$hooks_dl_dir"; then
+                log_error "Failed to create Hook download path - $hook_tmp_dl_dir"
+                return 1
+            fi
+        fi
+
+        if wget -O "$hook_download_file" "$hook_url"; then
+            log_success "Downloaded - $hook_url to $hook_download_file"
+            return 0
+        else
+            log_error "Failed to download - $hook_download_file"
+            return 1
+        fi
+
+    else
+        log_error "wget not available!"
+        return 1
+    fi
+
+    return 1
+}
+
+__install_hook() {
+    local hook_type="${1:-none}"
+    local hook="${2}"
+    local install_name="${3}"
+    local hook_tmp_dl_dir
+
+    case "$hook_type" in
+    boot)
+        hooks_dir="$BOOT_HOOKS_DIR"
+        hook_tmp_dl_dir="/tmp/703004ad-3b6c-4baa-84c5-868dd09acd06.download.boot-hooks"
+        ;;
+    container)
+        hooks_dir="$CONTAINER_HOOKS_DIR"
+        hook_tmp_dl_dir="/tmp/703004ad-3b6c-4baa-84c5-868dd09acd06.download.container-hooks"
+        ;;
+    *)
+        log_error "Invalid Hook type - ${hook_type}"
+        exit 2
+        ;;
+    esac
+
+    if [ -z "${hook}" ]; then
+        log_error "${hook_type} hook not specified!"
+        display_usage_boot
+        exit 1
+    fi
+
+    if ! __hooks_dir_present "$hook_type"; then
+        if mkdir -p "$hooks_dir"; then
+            log_success "Created ${hook_type} hooks dir - $hooks_dir"
+            if chmod 755 "$hooks_dir"; then
+                :
+            else
+                log_error "Failed to set permission for $hooks_dir"
+                exit 1
+            fi
+        else
+            log_error "Failed to create ${hook_type} hooks dir - $hooks_dir"
+            exit 1
+        fi
+    fi
+
+    case "$hook" in
+    https://* | http://*)
+        log_info "Hook appears to be a URL - $hook"
+        if __download_hook "$hook_type" "$hook"; then
+            log_info "Successfully downloded - $hook"
+            log_info "Pivoting to local hook file - ${hook_tmp_dl_dir}/$(basename "$hook")"
+            hook="${hook_tmp_dl_dir}/$(basename "$hook")"
+        else
+            log_error "Downloading hook failed - $hook"
+            exit 1
+        fi
+        ;;
+    file://* | ftp://*)
+        log_error "Only http:// or https:// and local files are supported."
+        exit 1
+        ;;
+    *)
+        log_info "Hook file is local"
+        ;;
+    esac
+
+    # check if install_name is not empty
+    if [ -z "$install_name" ]; then
+        install_name="$(basename "$hook")"
+        log_warn "Infering installed hook name($install_name) from source, This may not be what you desired!"
+    fi
+
+    # check if hook is already present in hooks_dir
+    case $hook in
+    $hooks_dir*)
+        log_error "Hook file is already present in $hooks_dir"
+        log_error "Did you mean to run - hookctl $hook_type enable $hook ?"
+        exit 1
+        ;;
+    esac
+
+    local hook_installed_path
+    hook_installed_path="$hooks_dir"/"$install_name"
+
+    if [ -e "$hook_installed_path" ]; then
+        if [ -f "$hook_installed_path" ]; then
+            log_info "Removing existing hook file - $hook_installed_path"
+            if rm -f "$hook_installed_path"; then
+                log_success "Removed existing hook file - $hook_installed_path"
+            else
+                log_error "Failed to remove existing hook file - $hook_installed_path"
+                exit 1
+            fi
+        else
+            log_error "Existing hook is not a file - $hook_installed_path"
+            exit 1
+        fi
+    fi
+
+    log_info "Installing hook to - $hook_installed_path"
+    if cp "$hook" "$hook_installed_path"; then
+        log_success "Succesfully installed - $hook_installed_path"
+        __enable_hook "$hook_type" "$hook_installed_path"
+    else
+        log_error "Failed to install hook - $hook_installed_path"
+        exit 1
+    fi
+
+}
+
+# hooks main
+__hooks_main_wrapper() {
+    local hook_type
+
+    case "$1" in
+    boot)
+        hook_type="boot"
+        hooks_dir="$BOOT_HOOKS_DIR"
+        ;;
+    container)
+        hook_type="container"
+        hooks_dir="$CONTAINER_HOOKS_DIR"
+        ;;
+    *)
+        log_error "Unsupported Hook type - ${1}, Please report this error!"
+        exit 2
+        ;;
+    esac
+
+    # remove hook type
+    shift
+
+    if [ "$#" -eq 0 ]; then
+        log_error "No arguments specified!"
+        __display_usage_hooks_shared "$hook_type"
+        exit 1
+    fi
+
+    while [ "${1}" != "" ]; do
+        case ${1} in
+        -h | --help | help)
+            __display_usage_hooks_shared "$hook_type"
+            exit 0
+            ;;
+        ls)
+            hookctl_enforce_ubios
+            shift
+            __list_hooks "$hook_type" "$1"
+            exit 0
+            ;;
+        rm | remove)
+            shift
+            hookctl_enforce_ubios
+            __remove_hook "$hook_type" "${1}"
+            exit 0
+            ;;
+        install)
+            hookctl_enforce_ubios
+            shift
+            __install_hook "$hook_type" "${1}" "${2}"
+            exit 0
+            ;;
+        disable)
+            hookctl_enforce_ubios
+            shift
+            __disable_hook "$hook_type" "${1}"
+            exit 0
+            ;;
+        invoke-all)
+            hookctl_enforce_ubios
+            shift
+            __invoke_hook_all "$hook_type" "$1"
+            exit $?
+            ;;
+        invoke)
+            hookctl_enforce_ubios
+            shift
+            __invoke_hook_single "$hook_type" "$1" "$2"
+            exit 0
+            ;;
+        enable)
+            hookctl_enforce_ubios
+            shift
+            __enable_hook "$hook_type" "${1}"
+            exit 0
+            ;;
+        *)
+            log_error "Invalid argument(s). See usage below."
+            __display_usage_hooks_shared "$hook_type"
+            exit 1
+            ;;
+        esac
+        shift
+    done
+}
+
+main() {
+    if [ $# -eq 0 ]; then
+        display_usage
+        exit 0
+    fi
+
+    while [ "${1}" != "" ]; do
+        case ${1} in
+        -h | --help)
+            display_usage
+            exit 0
+            ;;
+        boot)
+            shift
+            __hooks_main_wrapper "boot" "$@"
+            exit 0
+            ;;
+        container)
+            shift
+            __hooks_main_wrapper "container" "$@"
+            exit 0
+            ;;
+        *)
+            log_error "Invalid argument(s). See usage below."
+            display_usage
+            exit 1
+            ;;
+        esac
+        shift
+    done
+}
+
+main "$@"

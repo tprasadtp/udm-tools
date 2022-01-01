@@ -1,0 +1,134 @@
+version: "3"
+
+vars:
+  REPO_URL: https://github.com/tprasadtp/udm-tools
+  CNI_PLUGINS_VERSION: "1.0.1"
+
+tasks:
+  default:
+    desc: "Show a list of available tasks"
+    cmds:
+      - task --list
+    silent: true
+
+  build:deps-check:
+    desc: Check Build Dependencies
+    summary: |
+      - Checks if build dependencies are available
+    preconditions:
+      - sh: command -v nfpm > /dev/null
+        msg: "Command 'nfpm' not found!"
+      - sh: command -v git > /dev/null
+        msg: "Command 'git' not found!"
+      - sh: command -v sha256sum > /dev/null
+        msg: "Command 'sha256sum' not found!"
+      - sh: command -v curl > /dev/null
+        msg: "Command 'curl' not found!"
+      - sh: command -v jq > /dev/null
+        msg: "Command 'jq' not found!"
+
+  build:create-dir:
+    desc: Create Build directory
+    cmds:
+      - mkdir -p build
+      - mkdir -p build/download
+    status:
+      - test -d build
+      - test -d build/download
+
+  build:download-cni:
+    desc: Download CNI Plugins
+    summary: |
+      - Download latest CNI Plugin
+      - Verify downloaded plugin and extract it to build/vendor/cni-plugins/bin
+    deps:
+      - build:deps-check
+      - build:create-dir
+    cmds:
+      # Cleanup old files
+      - rm -f build/download/cni-plugins.tgz
+      - rm -f build/download/cni-plugins.tgz.sha256
+      - rm -f build/vendor/cni-plugins/LICENSE.txt
+      - rm -rf build/vendor/cni-plugins/bin
+      # Download release & checksum
+      - curl --progress-bar -fL -o build/download/cni-plugins.tgz https://github.com/containernetworking/plugins/releases/download/v{{trimPrefix "v" .CNI_PLUGINS_VERSION}}/cni-plugins-linux-arm64-v{{trimPrefix "v" .CNI_PLUGINS_VERSION}}.tgz
+      - curl --progress-bar -fL -o build/download/cni-plugins.tgz.sha256 https://github.com/containernetworking/plugins/releases/download/v{{trimPrefix "v" .CNI_PLUGINS_VERSION}}/cni-plugins-linux-arm64-v{{trimPrefix "v" .CNI_PLUGINS_VERSION}}.tgz.sha256
+      # Verify checksum
+      - sh: echo "$(cat build/download/cni-plugins.tgz.sha256)  build/download/cni-plugins.tgz" | sha256sum -c --strict
+      # Create build/vendor/cni-plugins
+      - mkdir -p build/vendor/cni-plugins
+      # Download License file
+      - curl --progress-bar -fL -o build/vendor/cni-plugins/LICENSE.txt https://raw.githubusercontent.com/containernetworking/plugins/master/LICENSE
+      # Generate Version file
+      - printf "%s" "{{.CNI_PLUGINS_VERSION}}" > build/vendor/cni-plugins/VERSION.txt
+      # Extract Plugins
+      - mkdir -p build/vendor/cni-plugins/bin
+      - tar --extract --gzip --file=build/download/cni-plugins.tgz --directory=build/vendor/cni-plugins/bin
+    sources:
+      - Taskfile.yml
+    generates:
+      - build/download/cni-plugins.tgz
+      - build/download/cni-plugins.tgz.sha256
+      - build/vendor/cni-plugins/LICENSE.txt
+      - build/vendor/cni-plugins/bin/**
+
+  build:
+    desc: Build Boot Hooks Package
+    summary: |
+      - Build udm-tools package using nfpm
+    deps:
+      - build:deps-check
+      - build:download-cni
+    cmds:
+      - cmd: nfpm package --packager deb --target build/udm-tools.deb
+    sources:
+      - udm-tools/**/*
+      - Taskfile.yml
+      - nfpm.yaml
+      - build/vendor/cniplugins/**/*
+    generates:
+      - build/udm-tools.deb
+
+  docs:update:
+    desc: Update docs with latest help
+    summary: |
+      - Inject script help into docs
+    cmds:
+      - sed -i '/<!--diana::dynamic:hookctl-help:begin-->/,/<!--diana::dynamic:hookctl-help:end-->/!b;//!d;/<!--diana::dynamic:hookctl-help:end-->/e echo "<pre>" && udm-tools/bin/hookctl --help && echo "</pre>"' docs/tools.md
+      - sed -i '/<!--diana::dynamic:hookctl-boot-help:begin-->/,/<!--diana::dynamic:hookctl-boot-help:end-->/!b;//!d;/<!--diana::dynamic:hookctl-boot-help:end-->/e echo "<pre>" && udm-tools/bin/hookctl boot --help && echo "</pre>"' docs/tools.md
+      - sed -i '/<!--diana::dynamic:hookctl-container-help:begin-->/,/<!--diana::dynamic:hookctl-container-help:end-->/!b;//!d;/<!--diana::dynamic:hookctl-container-help:end-->/e echo "<pre>" && udm-tools/bin/hookctl container --help && echo "</pre>"' docs/tools.md
+      - sed -i '/<!--diana::dynamic:udmctl-help:begin-->/,/<!--diana::dynamic:udmctl-help:end-->/!b;//!d;/<!--diana::dynamic:udmctl-help:end-->/e echo "<pre>" && udm-tools/bin/udmctl --help && echo "</pre>"' docs/tools.md
+      - sed -i '/<!--diana::dynamic:udmctl-analytics-help:begin-->/,/<!--diana::dynamic:udmctl-analytics-help:end-->/!b;//!d;/<!--diana::dynamic:udmctl-analytics-help:end-->/e echo "<pre>" && udm-tools/bin/udmctl analytics --help && echo "</pre>"' docs/tools.md
+      - sed -i '/<!--diana::dynamic:udmctl-sync-ssh-keys-help:begin-->/,/<!--diana::dynamic:udmctl-sync-ssh-keys-help:end-->/!b;//!d;/<!--diana::dynamic:udmctl-sync-ssh-keys-help:end-->/e echo "<pre>" && udm-tools/bin/udmctl sync-ssh-keys --help && echo "</pre>"' docs/tools.md
+      - sed -i '/<!--diana::dynamic:udmctl-shell-help:begin-->/,/<!--diana::dynamic:udmctl-shell-help:end-->/!b;//!d;/<!--diana::dynamic:udmctl-shell-help:end-->/e echo "<pre>" && udm-tools/bin/udmctl shell --help && echo "</pre>"' docs/tools.md
+
+  docs:changelog:
+    desc: Generate changelog
+    summary: |
+      - Generate Changelog
+      - Generate Release notes
+    cmds:
+      - git-chglog --no-emoji --repository-url {{.REPO_URL}} --output build/changelog.md
+      - git-chglog --no-emoji --repository-url {{.REPO_URL}} --output build/release-notes.md {{.GIT_TAG}}
+    preconditions:
+      - sh: command -v git-chglog > /dev/null
+        msg: "Command 'git-chglog' not found!"
+    vars:
+      GIT_TAG:
+        sh: git describe --tags --abbrev=0
+
+  clean:
+    desc: Cleans build output
+    summary: |
+      - Removes all generated packages
+      - Removes all generated metadata
+    cmds:
+      - rm -rf build/
+
+  update:shlibs:
+    desc: Update shell libraries
+    summary: Update shared shell libraries embedded in hooks
+  cmds:
+    - sed -i '/#diana::snippet:shlib-logger:begin#/,/#diana::snippet:shlib-logger:end#/!b;//!d;/#diana::snippet:shlib-logger:end#/e  curl -sSfL https://raw.githubusercontent.com/tprasadtp/dotfiles/master/libs/logger/logger.sh' files/bin/hookctl
+    - sed -i '/#diana::snippet:shlib-logger:begin#/,/#diana::snippet:shlib-logger:end#/!b;//!d;/#diana::snippet:shlib-logger:end#/e  curl -sSfL https://raw.githubusercontent.com/tprasadtp/dotfiles/master/libs/logger/logger.sh' files/bin/udmctl
+    - sed -i '/#diana::snippet:shlib-logger:begin#/,/#diana::snippet:shlib-logger:end#/!b;//!d;/#diana::snippet:shlib-logger:end#/e  curl -sSfL https://raw.githubusercontent.com/tprasadtp/dotfiles/master/libs/logger/logger.sh' docs/examples/template.sh

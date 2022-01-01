@@ -1,0 +1,90 @@
+# yaml-language-server: $schema=https://nfpm.goreleaser.com/schema.json
+
+name: udm-tools
+description: |
+  UDM/UDM Pro Tools.
+  - Provides Small and helpful utilites for UDM
+  - Provides boot time hooks to run custom code
+  - Provides CNI plugins to run custom podman containers via container hooks
+vendor: Prasad Tengse
+license: GPLv3
+maintainer: "Prasad Tengse <tprasadtp@users.noreply.github.com>"
+homepage: "https://udm-tools.prasadt.com/"
+
+arch: arm64
+platform: linux
+version: "0.9.5"
+section: misc
+priority: optional
+
+contents:
+  # Binaries
+  - src: udm-tools/bin/hookctl
+    dst: /usr/bin/hookctl
+    file_info:
+      mode: 0755
+
+  - src: udm-tools/bin/udmctl
+    dst: /usr/bin/udmctl
+    file_info:
+      mode: 0755
+
+  # Services
+  # nfpm does not support setting permissions on globs
+  # and spits out weird erorr - failed to copy: archive/tar: write too long
+  - src: udm-tools/systemd/udm-tools-install.service
+    dst: lib/systemd/system/udm-tools-install.service
+    file_info:
+      mode: 0644
+
+  - src: udm-tools/systemd/udm-tools-install-cni.service
+    dst: lib/systemd/system/udm-tools-install-cni.service
+    file_info:
+      mode: 0644
+
+  - src: udm-tools/systemd/udm-tools-install-prompt.service
+    dst: lib/systemd/system/udm-tools-install-prompt.service
+    file_info:
+      mode: 0644
+
+  - src: udm-tools/systemd/udm-tools-sshkeys.service
+    dst: lib/systemd/system/udm-tools-sshkeys.service
+    file_info:
+      mode: 0644
+
+  - src: udm-tools/systemd/udm-tools-boot-hooks.service
+    dst: lib/systemd/system/udm-tools-boot-hooks.service
+    file_info:
+      mode: 0644
+
+  - src: udm-tools/systemd/udm-tools-container-hooks.service
+    dst: lib/systemd/system/udm-tools-container-hooks.service
+    file_info:
+      mode: 0644
+
+  # Prompt files
+  - src: udm-tools/prompt/prompt.sh
+    dst: usr/share/udm-tools/prompt/prompt.sh
+    file_info:
+      mode: 0755
+
+  # CNI Version Info
+  - src: build/vendor/cni-plugins/VERSION.txt
+    dst: usr/share/udm-tools/cni-plugins/VERSION.txt
+    file_info:
+      mode: 0644
+
+  # CNI license
+  - src: build/vendor/cni-plugins/LICENSE.txt
+    dst: usr/share/udm-tools/cni-plugins/LICENSE.txt
+    file_info:
+      mode: 0644
+
+  # CNI Plugins
+  - src: build/vendor/cni-plugins/bin/**
+    dst: /usr/share/udm-tools/cni-plugins/bin/
+
+scripts:
+  postinstall: udm-tools/debian/postinstall.sh
+  preremove: udm-tools/debian/preremove.sh
+  postremove: udm-tools/debian/postremove.sh

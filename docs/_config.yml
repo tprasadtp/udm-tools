@@ -1,0 +1,28 @@
+# domain
+baseurl: "/"
+url: "https://udm-tools.prasadt.com"
+
+# meta
+title: UDM Tools
+description: Custom Tools for UniFi UDM and UDM Pro
+show_downloads: true
+google_analytics:
+# Use theme
+remote_theme: pmarsceill/just-the-docs
+# Logo
+logo: "https://static.prasadt.com/logos/projects/artemis/scalable/sysadmin.svg"
+# Enable Search
+search_enabled: true
+
+# Misc
+permalink: pretty
+
+# Aux links for the upper right navigation
+aux_links:
+  "View on GitHub":
+    - "https://github.com/tprasadtp/udm-tools/"
+  "Releases":
+    - "https://github.com/tprasadtp/udm-tools/releases/latest"
+
+# Makes Aux links open in a new tab
+aux_links_new_tab: true

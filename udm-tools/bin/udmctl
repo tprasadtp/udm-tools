@@ -1,0 +1,670 @@
+#!/bin/sh
+# Copyright (c) 2021, Prasad Tengse
+# shellcheck disable=SC2034,SC2155,SC2039
+
+# Script Constants
+CURDIR="$(cd -P -- "$(dirname -- "")" && pwd -P)"
+SCRIPT="$(basename "$0")"
+
+# Handle Signals
+# trap ctrl-c and SIGTERM
+trap ctrl_c_signal_handler INT
+trap term_signal_handler TERM
+
+ctrl_c_signal_handler() {
+    log_error "User Interrupt! CTRL-C"
+    exit 4
+}
+
+term_signal_handler() {
+    log_error "Signal Interrupt! SIGTERM"
+    exit 4
+}
+
+#diana::snippet:shlib-logger:begin#
+# shellcheck shell=sh
+# shellcheck disable=SC3043
+
+# SHELL LOGGING LIBRARY
+# See https://github.com/tprasadtp/shlibs/logger/README.md
+# If included in other files, contents between snippet markers
+# might automatically be updated (depending on who manages it)
+# and all changes between markers might be ignored.
+
+# Logger core ::internal::
+# This function should NOT be called directly.
+__logger_core_event_handler() {
+    [ "$#" -lt 2 ] && return 1
+
+    local lvl_caller="${1:-info}"
+
+    # Logging levels are similar to python's logging levels
+    case ${lvl_caller} in
+    trace)
+        level="0"
+        ;;
+    debug)
+        level="10"
+        ;;
+    info)
+        level="20"
+        ;;
+    success)
+        level="20"
+        ;;
+    notice)
+        level="25"
+        ;;
+    warning)
+        level="30"
+        ;;
+    error)
+        level="40"
+        ;;
+    critical)
+        level="50"
+        ;;
+    *)
+        level="100"
+        ;;
+    esac
+
+    # Immediately return if log level is not enabled
+    # If LOG_LVL is not set, defaults to 20 - info level
+    [ "${LOG_LVL:-20}" -gt "${level}" ] && return
+
+    shift
+    local lvl_msg="$*"
+
+    # Detect whether to coloring is disabled based on env variables,
+    # and if output Terminal is intractive.
+    # This supports following standards.
+    #  - https://bixense.com/clicolors/
+    #  - https://no-color.org/
+
+    local lvl_color
+    local lvl_colorized
+    local lvl_color_reset
+
+    # Forces colored logs
+    # - if CLICOLOR_FORCE is set and is not zero
+    if [ -n "${CLICOLOR_FORCE}" ] && [ "${CLICOLOR_FORCE}" != "0" ]; then
+        lvl_colorized="true"
+        # shellcheck disable=SC2155
+        lvl_color_reset="\e[0m"
+
+    # Disable colors if one of the conditions are true
+    # - CLICOLOR = 0
+    # - NO_COLOR is set to non empty value
+    # - TERM is set to dumb
+    elif [ -n "${NO_COLOR}" ] || [ "${CLICOLOR}" = "0" ] || [ "${TERM}" = "dumb" ]; then
+        lvl_colorized="false"
+
+    # Enable colors if not already disabled or forced and terminal is interactive
+    elif [ -t 1 ] && [ -t 2 ]; then
+        lvl_colorized="true"
+        # shellcheck disable=SC2155
+        lvl_color_reset="\e[0m"
+    fi
+
+    # Level name in string format
+    local lvl_prefix
+    # Level name in string format with timestamp if enabled or level symbol
+    local lvl_string
+
+    # Log format
+    if [ "${LOG_FMT:-pretty}" = "pretty" ] && [ "${lvl_colorized}" = "true" ]; then
+        lvl_string="•"
+    elif [ "${LOG_FMT}" = "full" ] || [ "${LOG_FMT}" = "long" ]; then
+        # shellcheck disable=SC2155
+        lvl_prefix="$(date --rfc-3339=s) "
+    fi
+
+    # Define level, color and timestamp
+    # By default we do not show log level and timestamp.
+    # However, if LOG_FMT is set to "full" or "long",
+    # we will enable long format with timestamps
+    case "$lvl_caller" in
+    trace)
+        # if lvl_string is set earlier, that means LOG_FMT is default or pretty
+        # we dont display timestamp or level name in this case. otherwise
+        # append level name to lvl_prefix
+        # (lvl_prefix is populated with timestamp if LOG_FMT is full or long)
+        [ -z "${lvl_string}" ] && lvl_string="${lvl_prefix}[TRACE   ]"
+        [ "${lvl_colorized}" = "true" ] && lvl_color="\e[38;5;246m"
+        ;;
+    debug)
+        [ -z "${lvl_string}" ] && lvl_string="${lvl_prefix}[DEBUG   ]"
+        [ "${lvl_colorized}" = "true" ] && lvl_color="\e[38;5;250m"
+        ;;
+    info)
+        [ -z "${lvl_string}" ] && lvl_string="${lvl_prefix}[INFO    ]"
+        # Avoid printing color reset sequence as this level is not colored
+        [ "${lvl_colorized}" = "true" ] && lvl_color_reset=""
+        ;;
+    success)
+        [ -z "${lvl_string}" ] && lvl_string="${lvl_prefix}[INFO    ]"
+        [ "${lvl_colorized}" = "true" ] && lvl_color="\e[38;5;83m"
+        ;;
+    notice)
+        [ -z "${lvl_string}" ] && lvl_string="${lvl_prefix}[NOTICE  ]"
+        # shellcheck disable=SC2155
+        [ "${lvl_colorized}" = "true" ] && lvl_color="\e[38;5;81m"
+        ;;
+    warning)
+        [ -z "${lvl_string}" ] && lvl_string="${lvl_prefix}[WARNING ]"
+        # shellcheck disable=SC2155
+        [ "${lvl_colorized}" = "true" ] && lvl_color="\e[38;5;214m"
+        ;;
+    error)
+        [ -z "${lvl_string}" ] && lvl_string="${lvl_prefix}[ERROR   ]"
+        # shellcheck disable=SC2155
+        [ "${lvl_colorized}" = "true" ] && lvl_color="\e[38;5;197m"
+        ;;
+    critical)
+        [ -z "${lvl_string}" ] && lvl_string="${lvl_prefix}[CRITICAL]"
+        # shellcheck disable=SC2155
+        [ "${lvl_colorized}" = "true" ] && lvl_color="\e[38;5;196m"
+        ;;
+    *)
+        [ -z "${lvl_string}" ] && lvl_string="${lvl_prefix}[UNKNOWN ]"
+        # Avoid printing color reset sequence as this level is not colored
+        [ "${lvl_colorized}" = "true" ] && lvl_color_reset=""
+        ;;
+    esac
+
+    # By default logs are written to stderr
+    case "${LOG_TO_STDOUT:-false}" in
+    true | True | TRUE | Yes | yes | YES | 1)
+        printf "${lvl_color}%s %s ${lvl_color_reset}\n" "${lvl_string}" "$lvl_msg"
+        ;;
+    *)
+        printf "${lvl_color}%s %s ${lvl_color_reset}\n" "${lvl_string}" "$lvl_msg" 1>&2
+        ;;
+    esac
+}
+
+# Leveled Loggers
+log_trace() {
+    __logger_core_event_handler "trace" "$@"
+}
+
+log_debug() {
+    __logger_core_event_handler "debug" "$@"
+}
+
+log_info() {
+    __logger_core_event_handler "info" "$@"
+}
+
+log_success() {
+    __logger_core_event_handler "success" "$@"
+}
+
+log_warning() {
+    __logger_core_event_handler "warning" "$@"
+}
+
+log_warn() {
+    __logger_core_event_handler "warning" "$@"
+}
+
+log_notice() {
+    __logger_core_event_handler "notice" "$@"
+}
+
+log_error() {
+    __logger_core_event_handler "error" "$@"
+}
+
+log_critical() {
+    __logger_core_event_handler "critical" "$@"
+}
+
+# For logging command outputs
+# Pipe output of your command to this function
+# This is EXPERIMENTAL FEATURE!!
+# If used without a pipe causes script to hang!
+# - Accepts two optional arguments.
+#  ARG 1 (str) - msg prefix, this will be prefixed with every line of output
+log_tail() {
+    local line prefix
+    [ -n "$1" ] && prefix="($1) "
+    while read -r line; do
+        __logger_core_event_handler "trace" "$prefix$line"
+    done
+}
+#diana::snippet:shlib-logger:end#
+
+__enforce_ubios() {
+    if ! grep -q "UbiOS" /etc/os-release; then
+        if [ "$CI_TEST_MODE" = "703004ad-3b6c-4baa-84c5-868dd09acd06" ]; then
+            log_warn "Not enforcing OS requirements due to CI_TEST_MODE"
+        else
+            log_error "${SCRIPT} MUST be executed from UbiOS, not Podman container!"
+            exit 1
+        fi
+    fi
+}
+
+__is_ubios() {
+    if grep -q "UbiOS" /etc/os-release; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Checks if command is available
+has_command() {
+    if command -v "$1" >/dev/null; then
+        return 0
+    else
+        return 1
+    fi
+    return 1
+}
+
+# Analytics help
+display_usage_analytics() {
+    cat <<EOF
+UDM Tools Analytics Manager
+
+Usage: $SCRIPT [GLOBAL-OPTIONS] analytics ACTION [HOOK]
+
+Commands:
+    disable           Disables anonymous analytics (Experimental)
+    help              Display this help message
+
+Options:
+  -h, --help          Display this help message
+
+Global Options:
+  -h, --help          Display this help message
+
+Examples:
+  ${SCRIPT} analytics help
+  ${SCRIPT} analytics disable
+
+Environment:
+  LOG_TO_STDOUT       Set this to 'true' to log to stdout.
+  NO_COLOR            Set this to NON-EMPTY to disable all colors.
+  CLICOLOR_FORCE      Set this to NON-ZERO to force colored output.
+EOF
+}
+
+__disable_analytics() {
+    local CONFIG_PROPERTIES_FILE
+    local CONFIG_PROPERTIES_DIR
+
+    if grep -q "UbiOS" /etc/os-release; then
+        log_info "Running from UbiOS"
+        CONFIG_PROPERTIES_FILE="/mnt/data/unifi-os/unifi/data/sites/default/config.properties"
+    else
+        log_info "Running from UniFi OS (podman)"
+        CONFIG_PROPERTIES_FILE="/data/unifi-os/unifi/data/sites/default/config.properties"
+    fi
+
+    local GREPPABLE_STRING="config.system_cfg.1=system.analytics.anonymous=disabled"
+    CONFIG_PROPERTIES_DIR="$(dirname "$CONFIG_PROPERTIES_FILE")"
+
+    if [ -z "$CONFIG_PROPERTIES_DIR" ] || [ -z "$CONFIG_PROPERTIES_FILE" ]; then
+        log_error "Undefined vaariables - CONFIG_PROPERTIES_FILE or CONFIG_PROPERTIES_DIR"
+        exit 2
+    fi
+
+    if [ -d "$CONFIG_PROPERTIES_DIR" ]; then
+        log_info "$CONFIG_PROPERTIES_DIR already exists"
+    else
+        if mkdir -p "$CONFIG_PROPERTIES_DIR"; then
+            log_success "Created $CONFIG_PROPERTIES_DIR"
+        else
+            log_error "Failed to create $CONFIG_PROPERTIES_DIR"
+            exit 1
+        fi
+    fi
+
+    if [ -f "$CONFIG_PROPERTIES_FILE" ]; then
+        log_info "$CONFIG_PROPERTIES_FILE exists, checking its contents"
+        if grep -q "$GREPPABLE_STRING" "$CONFIG_PROPERTIES_FILE"; then
+            log_success "Analytics is already disabled"
+            log_notice "You may have to reboot your UDM for this to be effective."
+        fi
+    else
+        log_info "Disabling analytics via hidden config file"
+        if echo "$GREPPABLE_STRING" >>"$CONFIG_PROPERTIES_FILE"; then
+            log_notice "You may have to reboot your UDM for this to be effective."
+        else
+            log_error "Disabling analytics via hidden config file failed!"
+            exit 1
+        fi
+    fi
+}
+
+__analytics_main() {
+    while [ "${1}" != "" ]; do
+        case ${1} in
+        -h | --help | help)
+            display_usage_analytics
+            exit 0
+            ;;
+        disable)
+            __disable_analytics
+            exit 0
+            ;;
+        reset | enable)
+            log_error "This command is not implemented yet"
+            exit 1
+            ;;
+        *)
+            log_error "Invalid argument(s). See usage below."
+            display_usage_analytics
+            exit 1
+            ;;
+        esac
+        shift
+    done
+}
+
+__sync_ssh_keys() {
+    __enforce_ubios
+
+    if ! has_command jq; then
+        log_error "Command jq is missing!"
+        exit 1
+    fi
+
+    if ! has_command podman; then
+        log_error "podman command is missing!"
+        exit 1
+    fi
+
+    local AUTHORIZED_KEYS="/root/.ssh/authorized_keys"
+    local KEYS_RC=-1
+    local COUNT=1
+    local KEYS_DATA
+    while [ "${KEYS_RC}" -ne 0 ] && [ "${COUNT}" -lt 60 ]; do
+        log_info "Fetching Keys from UniFi mongoDB (Attempt #${COUNT}/60)"
+        #shellcheck disable=SC2016
+        KEYS_DATA="$(podman exec unifi-os mongo --port 27117 --eval 'db.setting.find({key: {$eq: "mgmt"}}, {x_ssh_keys: 1, _id: 0});' --quiet ace)"
+        KEYS_RC="$?"
+        COUNT="$((COUNT + 1))"
+        if [ "${KEYS_RC}" -ne 0 ] && [ "${COUNT}" -lt 60 ]; then
+            log_warn "Failed to fetch keys from MongoDB, retrying in 5 seconds"
+            sleep 5
+        fi
+    done
+
+    if [ "${KEYS_RC}" -ne 0 ]; then
+        log_error "Failed to load keys from config after $COUNT attemps"
+        exit 1
+    else
+        log_info "Processing Keys..."
+        local KYES_PROCESSED="$(echo "${KEYS_DATA}" |
+            sed 's/\"date\" : ISODate\(.*\),//' |
+            jq -r '.x_ssh_keys | map([.type, .key, .comment] | join(" ")) | join("\n")')"
+        if [ -z "$KYES_PROCESSED" ]; then
+            log_error "No Keys found!"
+            exit 1
+        fi
+        echo "$KYES_PROCESSED" | while IFS= read -r KEY; do
+            if ! grep -Fxq "$KEY" "$AUTHORIZED_KEYS"; then
+                log_info "Adding key - $KEY"
+                if ! echo "$KEY" >>"$AUTHORIZED_KEYS"; then
+                    log_error "Failed to add key - $KEY"
+                    exit 1
+                fi
+            else
+                log_success "Key is already present - $KEY"
+            fi
+        done
+    fi
+
+}
+
+display_sync_ssh_keys_help() {
+    cat <<EOF
+Sync SSH Keys from UniFi network settings
+
+Usage: $SCRIPT [GLOBAL-OPTIONS] sync-ssh-keys
+
+Commands:
+    help              Display this help message
+
+Options:
+  -h, --help          Display this help message
+
+Global Options:
+  -h, --help          Display this help message
+
+Examples:
+  ${SCRIPT} sync-ssh-keys
+  ${SCRIPT} sync-ssh-keys help
+
+Environment:
+  LOG_TO_STDOUT       Set this to 'true' to log to stdout.
+  NO_COLOR            Set this to NON-EMPTY to disable all colors.
+  CLICOLOR_FORCE      Set this to NON-ZERO to force colored output.
+EOF
+}
+
+__sync_ssh_keys_main() {
+    while [ "${1}" != "" ]; do
+        case ${1} in
+        -h | --help | help)
+            display_sync_ssh_keys_help
+            exit 0
+            ;;
+        *)
+            log_error "Invalid argument(s). See usage below."
+            display_sync_ssh_keys_help
+            exit 1
+            ;;
+        esac
+        shift
+    done
+    __sync_ssh_keys
+}
+
+shell_usage() {
+    cat <<EOF
+Drops into bash shell inside UniFi OS
+
+Usage: $SCRIPT shell [OPTIONS]
+
+Arguments:
+    None
+
+Global Options:
+  -h, --help          Display this help message
+
+Examples:
+  ${SCRIPT} shell
+  ${SCRIPT} shell --help
+
+Environment:
+  LOG_TO_STDOUT       Set this to 'true' to log to stdout.
+  NO_COLOR            Set this to NON-EMPTY to disable all colors.
+  CLICOLOR_FORCE      Set this to NON-ZERO to force colored output.
+EOF
+}
+
+# Drop into shell
+__shell_main() {
+    __enforce_ubios
+
+    if ! has_command podman; then
+        log_error "'podman' command not found! Are you running this from UbiOS?"
+        exit 1
+    fi
+
+    if ! podman container exists "unifi-os"; then
+        log_error "unifi-os container is missing? Are you running this on UDM UbiOS?"
+        exit 1
+    else
+        if ! podman ps --format "{{.Names}}" | grep -qE "^unifi-os\$"; then
+            log_error "unifi-os container is present but not running ? Huh? Probaly UDM has crashed!!"
+            exit 1
+        fi
+    fi
+
+    if [ -s /etc/profile.d/20-udm-tools-install-prompt.sh ]; then
+        PODMAN_PROMPT_CONTENT="$(sed 's/UDM/UDM-PODMAN/g;s/9m/5m/g' /etc/profile.d/20-udm-tools-install-prompt.sh)"
+        podman exec -it \
+            -e "PODMAN_PROMPT_CONTENT=${PODMAN_PROMPT_CONTENT}" \
+            unifi-os bash -c \
+            'if [ -f ~/.bashrc ]; then if ! grep -q "dina" ~/.bashrc; then echo "$PODMAN_PROMPT_CONTENT" >> $HOME/.bashrc; fi; else echo "$PODMAN_PROMPT_CONTENT" >> $HOME/.bashrc; fi && exec bash'
+    else
+        log_debug "Cannot find host prompt to derive podman prompt!"
+        log_debug "File is missing or empty - /etc/profile.d/20-udm-tools-install-prompt.sh"
+        podman exec -it unifi-os /bin/bash
+    fi
+}
+
+__install_cni_plugins() {
+
+    if __is_ubios; then
+        log_error "This MUST be executed from podman container!"
+        exit 1
+    fi
+
+    if ! has_command "ssh"; then
+        log_error "Command ssh is missing!"
+        exit 1
+    fi
+
+    if ! has_command "scp"; then
+        log_error "Command scp is missing!"
+        exit 1
+    fi
+
+    log_info "Ensure /opt/cni/bin exists on host"
+    if ! ssh -p "$(cat /etc/unifi-os/ssh_proxy_port)" -o StrictHostKeyChecking=no -q root@localhost mkdir -p /opt/cni/bin; then
+        log_error "Failed to create /opt/cni/bin"
+        exit 1
+    fi
+
+    log_info "Ensure /opt/cni/bin permissions"
+    if ! ssh -p "$(cat /etc/unifi-os/ssh_proxy_port)" -o StrictHostKeyChecking=no root@localhost chmod 755 /opt/cni/bin; then
+        log_error "Failed to set /opt/cni/bin permissions"
+        exit 1
+    fi
+
+    log_info "Copy Binaries"
+    if scp -q -P "$(cat /etc/unifi-os/ssh_proxy_port)" -o StrictHostKeyChecking=no /usr/share/udm-tools/cni-plugins/bin/* root@localhost:/opt/cni/bin/; then
+        log_success "Successfully copied CNI plugins to host"
+    else
+        log_error "Failed to copy CNI plugins to host!"
+        exit 1
+    fi
+
+    log_info "Ensure Plugins are executable"
+    if ssh -p "$(cat /etc/unifi-os/ssh_proxy_port)" -o StrictHostKeyChecking=no -q root@localhost chmod 755 /opt/cni/bin/*; then
+        log_success "Successfully set permissions for plugins"
+    else
+        log_error "Failed to set permissions for plugins!"
+        exit 1
+    fi
+}
+
+__check_services() {
+
+    if __is_ubios; then
+        log_error "This MUST be executed from podman container!"
+        exit 1
+    fi
+
+    local fcount=0
+    for service in install install-prompt install-cni sshkeys boot-hooks container-hooks; do
+        if systemctl is-active --quiet "udm-tools-$service.service"; then
+            log_success "udm-tools-$service.service is active"
+        else
+            log_error "udm-tools-$service.service is not active!"
+            fcount="$((fcount + 1))"
+        fi
+    done
+
+    if [ "$fcount" -gt 0 ]; then
+        log_error "$fcount expected services are inactive!"
+        exit 1
+    fi
+}
+
+display_usage() {
+    cat <<EOF
+Wrapper for various UDM Tools
+
+Usage: ${SCRIPT} [GLOBAL-OPTIONS] COMMAND [OPTIONS] ARGS...
+
+Commands:
+    analytics         Configure anonymous Analytics (Experimental)
+    sync-ssh-keys     Syncs ssh keys from UniFi Controller
+    shell             Drop in to Unifi OS Shell
+    check-services    Checks all bundled services are active
+
+Global Options:
+  -h, --help          Display this help message
+
+Examples:
+  ${SCRIPT} --help    Display help
+
+Environment:
+  LOG_TO_STDOUT       Set this to 'true' to log to stdout.
+  NO_COLOR            Set this to NON-EMPTY to disable all colors.
+  CLICOLOR_FORCE      Set this to NON-ZERO to force colored output.
+EOF
+}
+
+main() {
+    if [ "$#" -eq 0 ]; then
+        display_usage
+    fi
+
+    while [ "${1}" != "" ]; do
+        case ${1} in
+        -h | --help | help)
+            display_usage
+            exit 0
+            ;;
+        analytics)
+            shift
+            __analytics_main "$@"
+            exit 0
+            ;;
+        sync-ssh-keys | ssh-keys-sync | ssh-keys | sync-keys)
+            shift
+            __sync_ssh_keys_main "$@"
+            exit 0
+            ;;
+        shell | s)
+            shift
+            case "$1" in
+            -h | --help | help)
+                shell_usage
+                exit 0
+                ;;
+            *)
+                __shell_main "$@"
+                exit $?
+                ;;
+            esac
+            ;;
+        install-cni-plugins | install-cni)
+            __install_cni_plugins
+            exit 0
+            ;;
+        check-services)
+            __check_services
+            exit 0
+            ;;
+        *)
+            log_error "Invalid argument(s). See usage below."
+            display_usage
+            exit 1
+            ;;
+        esac
+        shift
+    done
+}
+
+main "$@"

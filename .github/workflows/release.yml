@@ -1,0 +1,38 @@
+name: release
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "**"
+jobs:
+  release:
+    permissions:
+      # for github releases
+      contents: write
+
+    runs-on: ubuntu-latest
+    steps:
+      # We need full history for changelog
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Install Task
+        uses: arduino/setup-task@v1
+
+      - name: Install NFPM
+        run: |
+          echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
+          sudo apt update
+          sudo apt install -y nfpm
+
+      - name: Build
+        run: task build
+
+      - name: Generate Changelog
+        run: task docs:changelog
+
+      - name: Upload to GitHub Releases
+        run: ./scripts/release.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

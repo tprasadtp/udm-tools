@@ -1,0 +1,19 @@
+[Unit]
+Description=UDM CNI Installer
+
+# We dont need install service as this is executed in
+# context of podman container, which already has udmctl
+Wants=network-online.target
+After=network-online.target
+
+Documentation=https://udm-tools.prasadt.com/services
+
+[Service]
+Type=oneshot
+ExecStart=udmctl install-cni-plugins
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
+WantedBy=udm-tools-container-hooks.service
+WantedBy=udm-tools-cni-hooks.service

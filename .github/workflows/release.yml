@@ -29,7 +29,14 @@ jobs:
       - name: Build
         run: task build
 
-      - name: Generate Changelog
+      - name: Install git-chglog
+        run: |
+          brew tap git-chglog/git-chglog
+          brew install git-chglog
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: 1
+
+      - name: Changelog and Release notes
         run: task docs:changelog
 
       - name: Upload to GitHub Releases

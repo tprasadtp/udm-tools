@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright (c) 2021, Prasad Tengse
+# Copyright (c) 2022, Prasad Tengse
 # shellcheck disable=SC2034,SC2155,SC2039
 
 # Script Constants
@@ -769,7 +769,7 @@ __disable_hook() {
             log_info "${hook_type} hook is already disabled - $hook"
             exit 0
         else
-            if chmod -x "${hook}"; then
+            if chmod 600 "${hook}"; then
                 log_success "Disabled ${hook_type} hook - $hook"
             else
                 log_error "Failed to disable ${hook_type} hook - $hook"
@@ -825,7 +825,7 @@ __enable_hook() {
             log_success "${hook_type} hook is already enabled - $hook"
             exit 0
         else
-            if chmod +x "${hook}"; then
+            if chmod 700 "${hook}"; then
                 log_success "Enabled ${hook_type} hook - $hook"
             else
                 log_error "Failed to enable ${hook_type} hook - $hook"

@@ -1,7 +1,10 @@
 [Unit]
 Description=A bit fancier shell prompt and shell profile setup on host
+
 Wants=network-online.target
+
 After=network-online.target
+
 Documentation=https://udm-tools.prasadt.com/services
 
 [Service]

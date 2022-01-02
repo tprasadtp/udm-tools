@@ -1,7 +1,7 @@
 [Unit]
 Description=Sync SSH Keys from UniFi Network App to UDM
 After=udm-tools-install.service
-Requires=udm-tools-install.service
+Wants=udm-tools-install.service
 Documentation=https://udm-tools.prasadt.com/services
 
 [Service]

@@ -18,8 +18,7 @@ SERVICES=("udm-tools-install.service"
     "udm-tools-sshkeys.service"
     "udm-tools-boot-hooks.service"
     "udm-tools-install-cni.service"
-    "udm-tools-container-settings.service"
-    "udm-tools-container-hooks.service")
+    "udm-tools-libpod-config.service")
 
 # Enable services automagically
 if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ]; then

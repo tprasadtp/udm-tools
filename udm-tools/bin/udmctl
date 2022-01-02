@@ -344,6 +344,16 @@ __disable_analytics() {
 __sync_ssh_keys() {
     __enforce_ubios
 
+    case ${UDM_TOOLS_DISABLE_SYNC_SSH_KEYS:-false} in
+    true | True | TRUE | 1 | yes | Yes | YES)
+        log_warn "Syncing SSH keys is disabled via - UDM_TOOLS_DISABLE_SYNC_SSH_KEYS! You might not have CNI plugins on the host!"
+        exit 0
+        ;;
+    *)
+        log_debug "Syncing SSH keys is not disabled via UDM_TOOLS_DISABLE_SYNC_SSH_KEYS!"
+        ;;
+    esac
+
     if ! has_command jq; then
         log_error "Command jq is missing!"
         exit 1
@@ -421,7 +431,7 @@ __shell_main() {
         podman exec -it \
             -e "PODMAN_PROMPT_CONTENT=${PODMAN_PROMPT_CONTENT}" \
             unifi-os bash -c \
-            'if [ -f ~/.bashrc ]; then if ! grep -q "dina" ~/.bashrc; then echo "$PODMAN_PROMPT_CONTENT" >> $HOME/.bashrc; fi; else echo "$PODMAN_PROMPT_CONTENT" >> $HOME/.bashrc; fi && exec bash'
+            'if [ -f ~/.bashrc ]; then if ! grep -q "dina" ~/.bashrc; then echo "$PODMAN_PROMPT_CONTENT" >> ~/.bashrc; fi; else echo "$PODMAN_PROMPT_CONTENT" >> $HOME/.bashrc; fi && exec bash'
     else
         log_debug "Cannot find host prompt to derive podman prompt!"
         log_debug "File is missing or empty - /etc/profile.d/20-udm-tools-install-prompt.sh"
@@ -435,6 +445,16 @@ __install_cni_plugins() {
         log_error "This MUST be executed from podman container!"
         exit 1
     fi
+
+    case ${UDM_TOOLS_DISABLE_CNI_INSTALL:-false} in
+    true | True | TRUE | 1 | yes | Yes | YES)
+        log_warn "CNI Installer is disabled via - UDM_TOOLS_DISABLE_CNI_INSTALL! You might not have CNI plugins on the host!"
+        exit 0
+        ;;
+    *)
+        log_debug "CNI installer is not disabled via UDM_TOOLS_DISABLE_CNI_INSTALL!"
+        ;;
+    esac
 
     if ! has_command "ssh"; then
         log_error "Command ssh is missing!"
@@ -483,7 +503,7 @@ __check_services() {
     fi
 
     local fcount=0
-    for service in install install-prompt install-cni sshkeys boot-hooks container-settings container-hooks; do
+    for service in install install-prompt install-cni sshkeys boot-hooks libpod-config; do
         if systemctl is-active --quiet "udm-tools-$service.service"; then
             log_success "udm-tools-$service.service is active"
         else
@@ -502,7 +522,7 @@ __setup_libpod_settings() {
     __enforce_ubios
 
     local LIBPOD_CONFIG_FILE="/etc/containers/libpod.conf"
-    if [ -f "$LIBPOD_CONFIG_FILE" ]; then
+    if [ ! -f "$LIBPOD_CONFIG_FILE" ]; then
         log_error "Missing file - $LIBPOD_CONFIG_FILE"
         log_error "Are you sure that you are running this from UbiOS?"
         exit 1

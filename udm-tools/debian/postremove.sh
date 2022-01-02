@@ -27,13 +27,12 @@ esac
 
 # There exists a race condition in some edge cases,
 # do not change order of services!!
-SERVICES=("udm-tools-install.service" \
-    "udm-tools-install-prompt.service" \
-    "udm-tools-sshkeys.service" \
-    "udm-tools-boot-hooks.service" \
-    "udm-tools-install-cni.service" \
-    "udm-tools-container-settings.service" \
-    "udm-tools-container-hooks.service")
+SERVICES=("udm-tools-install.service"
+    "udm-tools-install-prompt.service"
+    "udm-tools-sshkeys.service"
+    "udm-tools-boot-hooks.service"
+    "udm-tools-install-cni.service"
+    "udm-tools-libpod-config.service")
 
 if [ -d /run/systemd/system ] && [ "$1" = remove ]; then
     systemctl --system daemon-reload >/dev/null || true

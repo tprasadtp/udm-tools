@@ -20,8 +20,7 @@ SERVICES=("udm-tools-install.service"
     "udm-tools-sshkeys.service"
     "udm-tools-boot-hooks.service"
     "udm-tools-install-cni.service"
-    "udm-tools-container-settings.service"
-    "udm-tools-container-hooks.service")
+    "udm-tools-libpod-config.service")
 
 if [ -d /run/systemd/system ] && [ "$1" = remove ]; then
     deb-systemd-invoke stop "${SERVICES[@]}" >/dev/null || true

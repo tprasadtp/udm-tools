@@ -15,7 +15,9 @@ RemainAfterExit=true
 [Install]
 WantedBy=multi-user.target
 WantedBy=udm-tools-boot-hooks.service
+
 WantedBy=udm-tools-sshkeys.service
-WantedBy=udm-tools-install-prompt.service
-WantedBy=udm-tools-cni-hooks.service
+WantedBy=udm-tools-install-cni.service
+
+WantedBy=udm-tools-libpod-config.service
 WantedBy=udm-tools-container-hooks.service

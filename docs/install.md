@@ -24,7 +24,7 @@ title: Install
     udmctl check-services
     ```
 - Install your boot hooks via `hookctl boot install <hook-file|url> <installed-hook-name>`
-- Install your container hooks via `hookctl boot install <hook-file|url> <installed-hook-name>`
+- Install your container hooks via `hookctl container install <hook-file|url> <installed-hook-name>`
 - Remove deb file
     ```sh
     rm -f /tmp/udm-tools.deb

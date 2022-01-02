@@ -1,11 +1,7 @@
 [Unit]
 Description=UDM CNI Installer
-
-# We dont need install service as this is executed in
-# context of podman container, which already has udmctl
-Wants=network-online.target
-After=network-online.target
-
+After=udm-tools-boot-hooks.service
+Wants=udm-tools-boot-hooks.service
 Documentation=https://udm-tools.prasadt.com/services
 
 [Service]

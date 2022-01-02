@@ -80,11 +80,11 @@ tasks:
       - build:deps-check
       - build:download-cni
     cmds:
-      - cmd: nfpm package --packager deb --target build/udm-tools.deb
+      - cmd: nfpm package -f udm-tools.nfpm.yml -p deb -t build/udm-tools.deb
     sources:
       - udm-tools/**/*
       - Taskfile.yml
-      - nfpm.yaml
+      - udm-tools.nfpm.yml
       - build/vendor/cniplugins/**/*
     generates:
       - build/udm-tools.deb
@@ -95,8 +95,6 @@ tasks:
       - Inject script help into docs
     cmds:
       - sed -i '/<!--diana::dynamic:hookctl-help:begin-->/,/<!--diana::dynamic:hookctl-help:end-->/!b;//!d;/<!--diana::dynamic:hookctl-help:end-->/e echo "<pre>" && udm-tools/bin/hookctl --help && echo "</pre>"' docs/tools.md
-      - sed -i '/<!--diana::dynamic:hookctl-boot-help:begin-->/,/<!--diana::dynamic:hookctl-boot-help:end-->/!b;//!d;/<!--diana::dynamic:hookctl-boot-help:end-->/e echo "<pre>" && udm-tools/bin/hookctl boot --help && echo "</pre>"' docs/tools.md
-      - sed -i '/<!--diana::dynamic:hookctl-container-help:begin-->/,/<!--diana::dynamic:hookctl-container-help:end-->/!b;//!d;/<!--diana::dynamic:hookctl-container-help:end-->/e echo "<pre>" && udm-tools/bin/hookctl container --help && echo "</pre>"' docs/tools.md
       - sed -i '/<!--diana::dynamic:udmctl-help:begin-->/,/<!--diana::dynamic:udmctl-help:end-->/!b;//!d;/<!--diana::dynamic:udmctl-help:end-->/e echo "<pre>" && udm-tools/bin/udmctl --help && echo "</pre>"' docs/tools.md
 
   docs:changelog:
@@ -124,8 +122,9 @@ tasks:
 
   update:shlibs:
     desc: Update shell libraries
-    summary: Update shared shell libraries embedded in hooks
+    summary: Update shared shell libraries embedded in hooks & utilities
   cmds:
     - sed -i '/#diana::snippet:shlib-logger:begin#/,/#diana::snippet:shlib-logger:end#/!b;//!d;/#diana::snippet:shlib-logger:end#/e  curl -sSfL https://raw.githubusercontent.com/tprasadtp/dotfiles/master/libs/logger/logger.sh' files/bin/hookctl
     - sed -i '/#diana::snippet:shlib-logger:begin#/,/#diana::snippet:shlib-logger:end#/!b;//!d;/#diana::snippet:shlib-logger:end#/e  curl -sSfL https://raw.githubusercontent.com/tprasadtp/dotfiles/master/libs/logger/logger.sh' files/bin/udmctl
-    - sed -i '/#diana::snippet:shlib-logger:begin#/,/#diana::snippet:shlib-logger:end#/!b;//!d;/#diana::snippet:shlib-logger:end#/e  curl -sSfL https://raw.githubusercontent.com/tprasadtp/dotfiles/master/libs/logger/logger.sh' docs/examples/template.sh
+    - sed -i '/#diana::snippet:shlib-logger:begin#/,/#diana::snippet:shlib-logger:end#/!b;//!d;/#diana::snippet:shlib-logger:end#/e  curl -sSfL https://raw.githubusercontent.com/tprasadtp/dotfiles/master/libs/logger/logger.sh' hooks/boot/10-motd
+    - sed -i '/#diana::snippet:shlib-logger:begin#/,/#diana::snippet:shlib-logger:end#/!b;//!d;/#diana::snippet:shlib-logger:end#/e  curl -sSfL https://raw.githubusercontent.com/tprasadtp/dotfiles/master/libs/logger/logger.sh' hooks/container/20-adguard-home

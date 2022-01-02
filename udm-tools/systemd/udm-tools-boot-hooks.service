@@ -1,17 +1,24 @@
 [Unit]
 Description=UDM/UDM-Pro Boot Hooks
-Requires=udm-tools-install.service
+
 After=udm-tools-install.service
+After=udm-tools-install-cni.service
+After=udm-tools-libpod-config.service
+
+Wants=udm-tools-install.service
+Wants=udm-tools-install-cni.service
+Wants=udm-tools-libpod-config.service
+
 Documentation=https://udm-tools.prasadt.com/services
 
 [Service]
 Type=oneshot
-ExecStart=/sbin/ssh-proxy hookctl boot invoke-all start
+ExecStart=/sbin/ssh-proxy hookctl invoke-all start
 
 # we deleberately use ExecStopPost because hook service will be in
 # failed state if any of the hooks scripts failed or exited with
 # non zero output.
-ExecStopPost=/sbin/ssh-proxy hookctl boot invoke-all stop
+ExecStopPost=/sbin/ssh-proxy hookctl invoke-all stop
 RemainAfterExit=true
 
 [Install]

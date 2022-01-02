@@ -1,7 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: MIT
-# Copyright (c) 2021, Prasad Tengse
-# Copyright (c) 2021, Your Name
+# Copyright (c) 2022, Prasad Tengse
 # shellcheck disable=SC2034,SC2155,SC2039
 
 # Script Constants
@@ -260,16 +258,31 @@ Environment:
 EOF
 }
 
+__setup_motd() {
+    log_info "Modifying login banner (motd)"
+    cat >/etc/motd <<EOF
+Welcome to UniFi Dream Machine!
+
+UI ............. https://unifi.ui.com/dashboard
+Model .......... $(ubnt-device-info model)
+Firmware ....... $(ubnt-device-info firmware)
+
+EOF
+}
+
 __hook_start() {
     log_info "Running hook start - $SCRIPT"
+    __setup_motd
 }
 
 __hook_stop() {
     log_info "Running hook stop - $SCRIPT"
+    log_notice "No action required for invoke-mode stop"
 }
 
 __hook_restart() {
     log_info "Running hook restart - $SCRIPT"
+    __setup_motd
 }
 
 main() {
@@ -280,13 +293,6 @@ main() {
         exit 0
         ;;
     esac
-
-    # checks if both invoke action and hook-type are specified
-    if [ "$#" -ne 2 ]; then
-        log_error "Invalid number of arguments($#) expects 2"
-        display_usage
-        exit 1
-    fi
 
     case ${1} in
     start)

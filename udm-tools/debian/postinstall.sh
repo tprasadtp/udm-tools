@@ -13,11 +13,12 @@ esac
 
 # There exists a race condition in some edge cases,
 # do not change order of services!!
-SERVICES=("udm-tools-install.service" \
-    "udm-tools-install-prompt.service" \
-    "udm-tools-sshkeys.service" \
-    "udm-tools-boot-hooks.service" \
-    "udm-tools-install-cni.service" \
+SERVICES=("udm-tools-install.service"
+    "udm-tools-install-prompt.service"
+    "udm-tools-sshkeys.service"
+    "udm-tools-boot-hooks.service"
+    "udm-tools-install-cni.service"
+    "udm-tools-container-settings.service"
     "udm-tools-container-hooks.service")
 
 # Enable services automagically
@@ -40,16 +41,16 @@ if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-decon
 fi
 
 # Run services automagically
-if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ] ; then
-	if [ -d /run/systemd/system ]; then
-		systemctl --system daemon-reload >/dev/null || true
-		if [ -n "$2" ]; then
-			_dh_action=restart
-		else
-			_dh_action=start
-		fi
-		deb-systemd-invoke $_dh_action "${SERVICES[@]}" >/dev/null || true
-	fi
+if [ "$1" = "configure" ] || [ "$1" = "abort-upgrade" ] || [ "$1" = "abort-deconfigure" ] || [ "$1" = "abort-remove" ]; then
+    if [ -d /run/systemd/system ]; then
+        systemctl --system daemon-reload >/dev/null || true
+        if [ -n "$2" ]; then
+            _dh_action=restart
+        else
+            _dh_action=start
+        fi
+        deb-systemd-invoke $_dh_action "${SERVICES[@]}" >/dev/null || true
+    fi
 fi
 
 exit 0

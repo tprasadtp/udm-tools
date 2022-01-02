@@ -1,9 +1,8 @@
 [Unit]
 Description=UDM/UDM-Pro Container Hooks
 # Require Binaries, Boot hooks and CNI to be available
-Requires=udm-tools-install.service udm-tools-install-cni.service udm-tools-boot-hooks.service
-After=udm-tools-install.service udm-tools-install-cni.service udm-tools-boot-hooks.service
-
+Requires=udm-tools-install.service udm-tools-install-cni.service udm-tools-boot-hooks.service udm-tools-container-settings.service
+After=udm-tools-install.service udm-tools-install-cni.service udm-tools-boot-hooks.service udm-tools-container-settings.service
 Documentation=https://udm-tools.prasadt.com/services
 
 [Service]

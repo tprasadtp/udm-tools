@@ -16,11 +16,11 @@ Runs boot time hooks. See [hooks](./hooks.md) for more info.
 
 ## `udm-tools-container-hooks`
 
-these hooks are executed **AFTER**  **ALL** boot hooks are **SUCCESSFULLY** executed. See [hooks](./hooks.md) for more info.
+These hooks are executed **AFTER** **ALL** the boot hooks are **SUCCESSFULLY** executed. See [hooks](./hooks.md) for more info.
 
 ## `udm-tools-install`
 
-Ensures that few tools like `hookctl`, and `udmctl` are available from host machine.
+Ensures that few tools like `hookctl`, and `udmctl` are available from host machine. all other hooks depend on this service, as this provides  binaries required by others on the host.
 
 ## `udm-tools-install-prompt`
 
@@ -44,4 +44,9 @@ Ensures a fancier and more merry shell prompt. This also adds ensures tools inst
 ## `udm-tools-install-cni`
 
 Similar to install unit, but installs bundled [cni plugins](https://github.com/containernetworking/plugins/releases) on the host.
-CNI Plugins are bundled with the package. They are downloaded during build time.
+CNI Plugins are bundled with the package. They are downloaded during build time. container hooks depend on this service and thus if masked, container hooks will not be executed!
+
+## `udm-tools-container-settings`
+
+Configures libpod settings. This includes but not limited to
+setting max log size and other minor tweaks.

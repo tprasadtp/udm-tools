@@ -98,9 +98,6 @@ tasks:
       - sed -i '/<!--diana::dynamic:hookctl-boot-help:begin-->/,/<!--diana::dynamic:hookctl-boot-help:end-->/!b;//!d;/<!--diana::dynamic:hookctl-boot-help:end-->/e echo "<pre>" && udm-tools/bin/hookctl boot --help && echo "</pre>"' docs/tools.md
       - sed -i '/<!--diana::dynamic:hookctl-container-help:begin-->/,/<!--diana::dynamic:hookctl-container-help:end-->/!b;//!d;/<!--diana::dynamic:hookctl-container-help:end-->/e echo "<pre>" && udm-tools/bin/hookctl container --help && echo "</pre>"' docs/tools.md
       - sed -i '/<!--diana::dynamic:udmctl-help:begin-->/,/<!--diana::dynamic:udmctl-help:end-->/!b;//!d;/<!--diana::dynamic:udmctl-help:end-->/e echo "<pre>" && udm-tools/bin/udmctl --help && echo "</pre>"' docs/tools.md
-      - sed -i '/<!--diana::dynamic:udmctl-analytics-help:begin-->/,/<!--diana::dynamic:udmctl-analytics-help:end-->/!b;//!d;/<!--diana::dynamic:udmctl-analytics-help:end-->/e echo "<pre>" && udm-tools/bin/udmctl analytics --help && echo "</pre>"' docs/tools.md
-      - sed -i '/<!--diana::dynamic:udmctl-sync-ssh-keys-help:begin-->/,/<!--diana::dynamic:udmctl-sync-ssh-keys-help:end-->/!b;//!d;/<!--diana::dynamic:udmctl-sync-ssh-keys-help:end-->/e echo "<pre>" && udm-tools/bin/udmctl sync-ssh-keys --help && echo "</pre>"' docs/tools.md
-      - sed -i '/<!--diana::dynamic:udmctl-shell-help:begin-->/,/<!--diana::dynamic:udmctl-shell-help:end-->/!b;//!d;/<!--diana::dynamic:udmctl-shell-help:end-->/e echo "<pre>" && udm-tools/bin/udmctl shell --help && echo "</pre>"' docs/tools.md
 
   docs:changelog:
     desc: Generate changelog

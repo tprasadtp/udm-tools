@@ -5,11 +5,9 @@ permalink: /tools
 title: Tools
 ---
 
-# Tools
+## hookctl
 
-## `hookctl`
-
-## Boot Hooks
+### Boot Hooks
 
 - boot hooks are standard hooks(as defined in [hooks](./hooks.md)),
 these are executed at S95 boot stage via unifi-os container.
@@ -59,7 +57,7 @@ Environment:
 </pre>
 <!--diana::dynamic:hookctl-boot-help:end-->
 
-## Container hooks
+### Container hooks
 
 - container hooks are standard hooks (as defined in [hooks](./hooks.md)),
 these are executed at after boot hooks
@@ -113,94 +111,38 @@ Environment:
 <!--diana::dynamic:hookctl-container-help:end-->
 
 
-## `udmctl`
+## udmctl
+
 Wrapper for various UDM Tools
 
-## UniFi Analytics manager
-
-<!--diana::dynamic:udmctl-analytics-help:begin-->
-<pre>
-UDM Tools Analytics Manager
-
-Usage: udmctl [GLOBAL-OPTIONS] analytics ACTION [HOOK]
-
-Commands:
-    disable           Disables anonymous analytics (Experimental)
-    help              Display this help message
-
-Options:
-  -h, --help          Display this help message
-
-Global Options:
-  -h, --help          Display this help message
-
-Examples:
-  udmctl analytics help
-  udmctl analytics disable
-
-Environment:
-  LOG_TO_STDOUT       Set this to 'true' to log to stdout.
-  NO_COLOR            Set this to NON-EMPTY to disable all colors.
-  CLICOLOR_FORCE      Set this to NON-ZERO to force colored output.
-</pre>
-<!--diana::dynamic:udmctl-analytics-help:end-->
-
-## Sync SSH Keys from UniFi Controller
-
-- syncs ssh keys from UniFi controller settings.
-- This is also invoked by oneshot service unit `udm-tools-sshkeys.service`
-
-<!--diana::dynamic:udmctl-sync-ssh-keys-help:begin-->
-<pre>
-Sync SSH Keys from UniFi network settings
-
-Usage: udmctl [GLOBAL-OPTIONS] sync-ssh-keys
-
-Commands:
-    help              Display this help message
-
-Options:
-  -h, --help          Display this help message
-
-Global Options:
-  -h, --help          Display this help message
-
-Examples:
-  udmctl sync-ssh-keys
-  udmctl sync-ssh-keys help
-
-Environment:
-  LOG_TO_STDOUT       Set this to 'true' to log to stdout.
-  NO_COLOR            Set this to NON-EMPTY to disable all colors.
-  CLICOLOR_FORCE      Set this to NON-ZERO to force colored output.
-</pre>
-<!--diana::dynamic:udmctl-sync-ssh-keys-help:end-->
-
-## UniFi OS Shell
-
-- Drops you into unifi-os container. This is similar to `unifi-os shell`
-- If prompt (PS1) is setup by `udm-tools-install-prompt.service`,
+- `sync-ssh-keys` syncs ssh keys from UniFi controller settings.
+This is also invoked by oneshot service unit `udm-tools-sshkeys.service`
+- `libpod-settings` configures libpod/podman settings like max log size etc. This is also invoked by oneshot service unit `udm-tools-container-settings.service`
+- `shell` Drops you into unifi-os container. This is similar to `unifi-os shell`. If prompt (PS1) is setup by `udm-tools-install-prompt.service`,
 it will also be used within unifi-os container.
 
-<!--diana::dynamic:udmctl-shell-help:begin-->
+<!--diana::dynamic:udmctl-help:begin-->
 <pre>
-Drops into bash shell inside UniFi OS
+Wrapper for various UDM Tools
 
-Usage: udmctl shell [OPTIONS]
+Usage: udmctl [GLOBAL-OPTIONS] COMMAND [OPTIONS] ARGS...
 
-Arguments:
-    None
+Commands:
+    check-services    Checks all bundled services are active
+    disable-analytics Configure anonymous Analytics (Experimental)
+    libpod-settings   Set libpod, podman settings like log size etc.
+    sync-ssh-keys     Syncs ssh keys from UniFi network settings
+    shell             Drop in to Unifi OS Shell
 
 Global Options:
   -h, --help          Display this help message
 
 Examples:
-  udmctl shell
-  udmctl shell --help
+  udmctl --help    Display help
 
 Environment:
   LOG_TO_STDOUT       Set this to 'true' to log to stdout.
   NO_COLOR            Set this to NON-EMPTY to disable all colors.
   CLICOLOR_FORCE      Set this to NON-ZERO to force colored output.
 </pre>
-<!--diana::dynamic:udmctl-shell-help:end-->
+<!--diana::dynamic:udmctl-help:end-->

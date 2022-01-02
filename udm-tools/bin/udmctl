@@ -1,5 +1,5 @@
 #!/bin/sh
-# Copyright (c) 2021, Prasad Tengse
+# Copyright (c) 2022, Prasad Tengse
 # shellcheck disable=SC2034,SC2155,SC2039
 
 # Script Constants
@@ -341,31 +341,6 @@ __disable_analytics() {
     fi
 }
 
-__analytics_main() {
-    while [ "${1}" != "" ]; do
-        case ${1} in
-        -h | --help | help)
-            display_usage_analytics
-            exit 0
-            ;;
-        disable)
-            __disable_analytics
-            exit 0
-            ;;
-        reset | enable)
-            log_error "This command is not implemented yet"
-            exit 1
-            ;;
-        *)
-            log_error "Invalid argument(s). See usage below."
-            display_usage_analytics
-            exit 1
-            ;;
-        esac
-        shift
-    done
-}
-
 __sync_ssh_keys() {
     __enforce_ubios
 
@@ -420,73 +395,6 @@ __sync_ssh_keys() {
         done
     fi
 
-}
-
-display_sync_ssh_keys_help() {
-    cat <<EOF
-Sync SSH Keys from UniFi network settings
-
-Usage: $SCRIPT [GLOBAL-OPTIONS] sync-ssh-keys
-
-Commands:
-    help              Display this help message
-
-Options:
-  -h, --help          Display this help message
-
-Global Options:
-  -h, --help          Display this help message
-
-Examples:
-  ${SCRIPT} sync-ssh-keys
-  ${SCRIPT} sync-ssh-keys help
-
-Environment:
-  LOG_TO_STDOUT       Set this to 'true' to log to stdout.
-  NO_COLOR            Set this to NON-EMPTY to disable all colors.
-  CLICOLOR_FORCE      Set this to NON-ZERO to force colored output.
-EOF
-}
-
-__sync_ssh_keys_main() {
-    while [ "${1}" != "" ]; do
-        case ${1} in
-        -h | --help | help)
-            display_sync_ssh_keys_help
-            exit 0
-            ;;
-        *)
-            log_error "Invalid argument(s). See usage below."
-            display_sync_ssh_keys_help
-            exit 1
-            ;;
-        esac
-        shift
-    done
-    __sync_ssh_keys
-}
-
-shell_usage() {
-    cat <<EOF
-Drops into bash shell inside UniFi OS
-
-Usage: $SCRIPT shell [OPTIONS]
-
-Arguments:
-    None
-
-Global Options:
-  -h, --help          Display this help message
-
-Examples:
-  ${SCRIPT} shell
-  ${SCRIPT} shell --help
-
-Environment:
-  LOG_TO_STDOUT       Set this to 'true' to log to stdout.
-  NO_COLOR            Set this to NON-EMPTY to disable all colors.
-  CLICOLOR_FORCE      Set this to NON-ZERO to force colored output.
-EOF
 }
 
 # Drop into shell
@@ -575,7 +483,7 @@ __check_services() {
     fi
 
     local fcount=0
-    for service in install install-prompt install-cni sshkeys boot-hooks container-hooks; do
+    for service in install install-prompt install-cni sshkeys boot-hooks container-settings container-hooks; do
         if systemctl is-active --quiet "udm-tools-$service.service"; then
             log_success "udm-tools-$service.service is active"
         else
@@ -590,6 +498,29 @@ __check_services() {
     fi
 }
 
+__setup_libpod_settings() {
+    __enforce_ubios
+
+    local LIBPOD_CONFIG_FILE="/etc/containers/libpod.conf"
+    if [ -f "$LIBPOD_CONFIG_FILE" ]; then
+        log_error "Missing file - $LIBPOD_CONFIG_FILE"
+        log_error "Are you sure that you are running this from UbiOS?"
+        exit 1
+    fi
+
+    log_info "Setting Max log size - 100M"
+    if grep -q "max_log_size = 104857600" "$LIBPOD_CONFIG_FILE"; then
+        log_success "Log size is already configured!"
+    else
+        if sed -i 's/max_log_size = -1/max_log_size = 104857600/g' "$LIBPOD_CONFIG_FILE"; then
+            log_success "Success"
+        else
+            log_error "Failed to setup max log size!"
+            exit 1
+        fi
+    fi
+}
+
 display_usage() {
     cat <<EOF
 Wrapper for various UDM Tools
@@ -597,10 +528,11 @@ Wrapper for various UDM Tools
 Usage: ${SCRIPT} [GLOBAL-OPTIONS] COMMAND [OPTIONS] ARGS...
 
 Commands:
-    analytics         Configure anonymous Analytics (Experimental)
-    sync-ssh-keys     Syncs ssh keys from UniFi Controller
-    shell             Drop in to Unifi OS Shell
     check-services    Checks all bundled services are active
+    disable-analytics Configure anonymous Analytics (Experimental)
+    libpod-settings   Set libpod, podman settings like log size etc.
+    sync-ssh-keys     Syncs ssh keys from UniFi network settings
+    shell             Drop in to Unifi OS Shell
 
 Global Options:
   -h, --help          Display this help message
@@ -626,9 +558,8 @@ main() {
             display_usage
             exit 0
             ;;
-        analytics)
-            shift
-            __analytics_main "$@"
+        disable-analytics)
+            __disable_analytics
             exit 0
             ;;
         sync-ssh-keys | ssh-keys-sync | ssh-keys | sync-keys)
@@ -655,6 +586,10 @@ main() {
             ;;
         check-services)
             __check_services
+            exit 0
+            ;;
+        libpod-settings | container-settings | podman-settings)
+            __setup_libpod_settings
             exit 0
             ;;
         *)

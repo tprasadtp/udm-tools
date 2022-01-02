@@ -13,7 +13,7 @@ homepage: "https://udm-tools.prasadt.com/"
 
 arch: arm64
 platform: linux
-version: "0.9.6"
+version: "0.10.0"
 section: misc
 priority: optional
 
@@ -57,6 +57,11 @@ contents:
     file_info:
       mode: 0644
 
+  - src: udm-tools/systemd/udm-tools-container-settings.service
+    dst: lib/systemd/system/udm-tools-container-settings.service
+    file_info:
+      mode: 0644
+
   - src: udm-tools/systemd/udm-tools-container-hooks.service
     dst: lib/systemd/system/udm-tools-container-hooks.service
     file_info:
@@ -83,6 +88,17 @@ contents:
   # CNI Plugins
   - src: build/vendor/cni-plugins/bin/**
     dst: /usr/share/udm-tools/cni-plugins/bin/
+
+  # samples
+  - src: hooks/boot/10-motd
+    dst: /usr/share/udm-tools/sample-hooks/boot/10-motd
+    file_info:
+      mode: 0644
+
+  - src: hooks/container/20-adguard-home
+    dst: /usr/share/udm-tools/sample-hooks/container/20-adguard-home
+    file_info:
+      mode: 0644
 
 scripts:
   postinstall: udm-tools/debian/postinstall.sh

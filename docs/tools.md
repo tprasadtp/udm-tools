@@ -23,8 +23,8 @@ Commands:
     install [FILE]        Install hook
     disable [HOOK]        Disable hook
     enable  [HOOK]        Enable hook
-    invoke start [HOOK]   Invoke start on single hook
-    invoke stop  [HOOK]   Invoke stop  on single hook
+    invoke-start [HOOK]   Invoke start on single hook
+    invoke-stop  [HOOK]   Invoke stop  on single hook
     invoke-all start      Invoke start on all hooks
     invoke-all stop       Invoke stop  on all hooks
     help                  display this help message

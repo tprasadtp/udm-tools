@@ -551,6 +551,7 @@ Commands:
     check-services    Checks all bundled services are active
     disable-analytics Configure anonymous Analytics (Experimental)
     libpod-settings   Set libpod, podman settings like log size etc.
+    ssh               SSH into host and run commands specified
     sync-ssh-keys     Syncs ssh keys from UniFi network settings
     shell             Drop in to Unifi OS Shell
 
@@ -558,7 +559,9 @@ Global Options:
   -h, --help          Display this help message
 
 Examples:
-  ${SCRIPT} --help    Display help
+  ${SCRIPT} --help                 Display help
+  ${SCRIPT} ssh ubnt-tools hwaddr  Get Hardware address via ssh
+
 
 Environment:
   LOG_TO_STDOUT       Set this to 'true' to log to stdout.
@@ -611,6 +614,16 @@ main() {
         libpod-settings | container-settings | podman-settings)
             __setup_libpod_settings
             exit 0
+            ;;
+        ssh)
+            shift
+            if __is_ubios; then
+                log_error "ssh can only be invoked from Unifo OS"
+                exit 1
+            else
+                ssh -p "$(cat /etc/unifi-os/ssh_proxy_port)" -o StrictHostKeyChecking=no -q root@localhost -- "$@"
+                exit $?
+            fi
             ;;
         *)
             log_error "Invalid argument(s). See usage below."

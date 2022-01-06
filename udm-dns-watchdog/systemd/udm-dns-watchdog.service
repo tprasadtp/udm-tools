@@ -1,0 +1,31 @@
+[Unit]
+Description=External DNS watchdog for Unifi controller
+Documentation=https://udm-tools.prasadt.com/dns-watchdog
+
+# Dependencies
+After=unifi.service
+Wants=unifi.service
+
+# Conditionals
+ConditionFileNotEmpty=/data/udm-dns-watchdog/config
+ConditionFileNotEmpty=/data/udm-dns-watchdog/credentials.env
+
+[Service]
+Type=notify
+
+DynamicUser=true
+User=udm-dns-watchdog
+Group=udm-dns-watchdog
+
+EnvironmentFile=/data/udm-dns-watchdog/credentials.env
+ExecStart=udm-dns-watchdog --systemd --config /data/udm-dns-watchdog/config
+ExecReload=kill -HUP $MAINPID
+
+# Watchdog
+WatchdogSec=30s
+Restart=on-failure
+StartLimitInterval=5min
+StartLimitBurst=4
+
+[Install]
+WantedBy=multi-user.target

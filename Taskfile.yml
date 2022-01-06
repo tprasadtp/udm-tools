@@ -96,6 +96,8 @@ tasks:
     cmds:
       - sed -i '/<!--diana::dynamic:hookctl-help:begin-->/,/<!--diana::dynamic:hookctl-help:end-->/!b;//!d;/<!--diana::dynamic:hookctl-help:end-->/e echo "<pre>" && udm-tools/bin/hookctl --help && echo "</pre>"' docs/tools.md
       - sed -i '/<!--diana::dynamic:udmctl-help:begin-->/,/<!--diana::dynamic:udmctl-help:end-->/!b;//!d;/<!--diana::dynamic:udmctl-help:end-->/e echo "<pre>" && udm-tools/bin/udmctl --help && echo "</pre>"' docs/tools.md
+      - sed -i '/#diana::dynamic:dns-watchdog-sample-config:begin#/,//#diana::dynamic:dns-watchdog-sample-config:end#/!b;//!d;//#diana::dynamic:dns-watchdog-sample-config:end#/e cat udm-dns-watchdog/config/sample' docs/udm-dns-watchdog/index.md
+      # - sed -i '/<!--diana::dynamic:udmctl-dw-help:begin-->/,/<!--diana::dynamic:udmctl-dw-help:end-->/!b;//!d;/<!--diana::dynamic:udmctl-dw-help:end-->/e echo "<pre>" && udm-dns-watchdog/udm-dns-watchdog --help && echo "</pre>"' docs/udm-dns-watchdog/cli.md
 
   docs:changelog:
     desc: Generate changelog
@@ -128,3 +130,6 @@ tasks:
     - sed -i '/#diana::snippet:shlib-logger:begin#/,/#diana::snippet:shlib-logger:end#/!b;//!d;/#diana::snippet:shlib-logger:end#/e  curl -sSfL https://raw.githubusercontent.com/tprasadtp/dotfiles/master/libs/logger/logger.sh' files/bin/udmctl
     - sed -i '/#diana::snippet:shlib-logger:begin#/,/#diana::snippet:shlib-logger:end#/!b;//!d;/#diana::snippet:shlib-logger:end#/e  curl -sSfL https://raw.githubusercontent.com/tprasadtp/dotfiles/master/libs/logger/logger.sh' hooks/boot/10-motd
     - sed -i '/#diana::snippet:shlib-logger:begin#/,/#diana::snippet:shlib-logger:end#/!b;//!d;/#diana::snippet:shlib-logger:end#/e  curl -sSfL https://raw.githubusercontent.com/tprasadtp/dotfiles/master/libs/logger/logger.sh' hooks/container/20-adguard-home
+
+
+#diana::dynamic:dns-watchdog-sample-config:end#

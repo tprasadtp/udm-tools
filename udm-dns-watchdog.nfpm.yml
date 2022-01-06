@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=https://nfpm.goreleaser.com/schema.json
+
+name: udm-dns-watchdog
+description: |
+  DNS watchdog. Checks if your preferred DNS is healthy and
+  available. If not sets fallback option in Network settings.
+vendor: Prasad Tengse
+license: GPLv3
+maintainer: "Prasad Tengse <tprasadtp@users.noreply.github.com>"
+homepage: "https://udm-tools.prasadt.com/"
+
+arch: all
+platform: linux
+version: "0.11.0"
+section: misc
+priority: optional
+
+depends:
+  - python3-minimal
+  - python3-systemd
+  - python3-dnspython
+
+contents:
+  # Binaries
+  - src: udm-dns-watchdog/udm-dns-watchdog
+    dst: /usr/bin/udm-dns-watchdog
+    file_info:
+      mode: 0755
+
+  # Services
+  - src: udm-dns-watchdog/systemd/udm-dns-watchdog.service
+    dst: lib/systemd/system/udm-dns-watchdog.service
+    file_info:
+      mode: 0644
+
+  # samples
+  - src: udm-dns-watchdog/config/sample
+    dst: /usr/share/udm-dns-watchdog/config/sample
+    file_info:
+      mode: 0644
+
+scripts:
+  postinstall: udm-dns-watchdog/debian/postinstall.sh
+  preremove: udm-dns-watchdog/debian/preremove.sh
+  postremove: udm-dns-watchdog/debian/postremove.sh

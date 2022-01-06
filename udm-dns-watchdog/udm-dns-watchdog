@@ -1,0 +1,374 @@
+#!/usr/bin/env python3
+
+# pyright: reportOptionalMemberAccess=false, pythonPlatform=All
+
+"""
+UDM DNS Watchdog
+"""
+
+import argparse
+import configparser
+import logging
+import ipaddress
+import sys
+import os
+from pathlib import Path
+from typing import List, Optional
+import dns.name
+import socket
+
+# Single random host will be chosen from this list
+# every time. uppercase of subdomain is intentional.
+SAMPLING_DNS_HOSTS = [
+    "CONNECTIVITYCHECK.gstatic.com",
+    "NMCHECK.gnome.org",
+    "CONNECTIVITY-CHECK.ubuntu.com",
+    "NETWORK-TEST.debian.org",
+    "DETECTPORTAL.firefox.com",
+]
+
+# fallback DNS servers
+CLOUDFLARE = [
+    "1.1.1.1",
+    "1.0.0.1",
+    "2606:4700:4700::1111",
+    "2606:4700:4700::1001",
+]
+CLOUDFLARE_FAMILY = [
+    "1.1.1.3",
+    "1.0.0.3",
+    "2606:4700:4700::1113",
+    "2606:4700:4700::1003",
+]
+CLOUDFLARE_PROTECT = [
+    "1.1.1.2",
+    "1.0.0.2",
+    "2606:4700:4700::1112",
+    "2606:4700:4700::1002",
+]
+GOOGLE = [
+    "8.8.8.8",
+    "8.8.4.4",
+    "2001:4860:4860::8888",
+    "2001:4860:4860::8844"
+]
+
+# Be careful using DNS64 as stuff might break
+# if ISP does not supports it
+GOOGLE_DNS64 = [
+    "2001:4860:4860::6464"
+    "2001:4860:4860::64"
+]
+
+CLOUDFLARE_DNS64 = [
+    "2606:4700:4700::64",
+    "2606:4700:4700::6400"
+]
+
+# Presets
+FALLBACK_CONFIG_SET = {
+    "cloudflare-families": CLOUDFLARE_FAMILY,
+    "cloudflare-family": CLOUDFLARE_FAMILY,
+    "cloudflare-protect": CLOUDFLARE_PROTECT,
+    "cloudflare": CLOUDFLARE,
+    "google": GOOGLE,
+    # DNS64 only
+    "cloudflare-dns64": CLOUDFLARE_DNS64,
+    "google-dns64": GOOGLE_DNS64
+}
+
+class DNSConfigError(Exception):
+    """
+    Error in DNS configuration
+    """
+
+    def __init__(self, message):
+        self.message = message
+
+    def __str__(self):
+        return str(self.message)
+
+
+class DNSConfig:
+    def __init__(self, config_file: Optional[str] = None) -> None:
+        self._config_file: Optional[str] = config_file
+        self._api_version: int = 1
+
+        self._unifi_host: str = "localhost"
+        self._unifi_port: int = 443
+        self._unifi_insecure: bool = False
+        self._unifi_username: Optional[str] = None
+        self._unifi_password: Optional[str] = None
+        self._unifi_site: str = "default"
+
+        self._dns_servers: Optional[List[str]] = None
+        self._dns_threshold: int = 2
+        # Prefer systemd settings if defined.
+        self._dns_interval: int = 30
+        self._dns_fallback: str = "cloudflare-family"
+
+        self._network_stack: str = "auto"
+
+        self._sampling_dns_hosts: List[str] = SAMPLING_DNS_HOSTS
+
+    @property
+    def unifi_port(self) -> int:
+        return self._unifi_port
+
+    @unifi_port.setter
+    def unifi_port(self, value: int) -> None:
+        if value < 2 or value > 65534:
+            raise DNSConfigError(f"unifi.port version MUST be 1, got - {value}")
+        else:
+            self._api_version = value
+
+    @property
+    def unifi_host(self) -> str:
+        return self._unifi_host
+
+    @unifi_host.setter
+    def unifi_host(self, value: str) -> None:
+        if isinstance(value, str):
+            if value.strip() == "":
+                raise DNSConfigError(
+                    f"unifi.host version MUST be non empty, got - {value}"
+                )
+            try:
+                if socket.gethostbyname(value).strip() != "":
+                    self._unifi_host = value
+                else:
+                    logging.warning(f"unifi.host - {value} cannot be resolved")
+            except Exception:
+                logging.warning(f"unifi.host - {value} cannot be resolved")
+        else:
+            raise DNSConfigError(
+                "unifi.host version MUST be string empty, "
+                f"- {type(value)}={value}"
+            )
+
+    @property
+    def unifi_username(self) -> Optional[str]:
+        if self._unifi_username is None or self._unifi_username.strip() == "":
+            return os.environ.get("UNIFI_API_USER")
+        else:
+            return self._unifi_username
+
+    @unifi_username.setter
+    def unifi_username(self, value: str) -> None:
+        if not isinstance(value, str):
+            raise DNSConfigError("unifi.username MUST be string")
+        else:
+            if value.strip() == "":
+                raise DNSConfigError("unifi.username CANNOT be empty string")
+            else:
+                self._unifi_username = value
+
+    @property
+    def unifi_password(self) -> Optional[str]:
+        if self._unifi_password is None or self._unifi_password.strip() == "":
+            return os.environ.get("UNIFI_API_PASSWORD")
+        else:
+            return self._unifi_password
+
+    @unifi_password.setter
+    def unifi_password(self, value: str) -> None:
+        if not isinstance(value, str):
+            raise DNSConfigError("unifi.password MUST be string")
+        else:
+            if value.strip() == "":
+                raise DNSConfigError("unifi.password CANNOT be empty string")
+            else:
+                self._unifi_password = value
+
+    @property
+    def insecure(self) -> bool:
+        return self._unifi_insecure
+
+    @insecure.setter
+    def insecure(self, value: bool) -> None:
+        if not isinstance(value, bool):
+            raise DNSConfigError("unifi.insecure MUST boolean")
+        self._unifi_insecure = value
+
+    @property
+    def site(self) -> str:
+        return self._unifi_site
+
+    @site.setter
+    def site(self, value: str) -> None:
+        if not isinstance(value, str):
+            raise DNSConfigError("unifi.site MUST string")
+        else:
+            if value.strip() == "":
+                raise DNSConfigError("unifi.site CANNOT be set to empty")
+            else:
+                self._unifi_site = value
+
+    @property
+    def dns_interval(self) -> int:
+        return self._dns_interval
+
+    @dns_interval.setter
+    def dns_interval(self, value: int) -> None:
+        if not isinstance(value, int):
+            raise DNSConfigError("dns.interval MUST integer")
+
+        if not value < 30 or value > 300:
+            raise DNSConfigError(
+                "dns.interval out of bounds 30 <= {value} <= 300,"
+            )
+
+        self._dns_interval = value
+
+    @property
+    def dns_threshold(self) -> int:
+        return self._dns_threshold
+
+    @dns_threshold.setter
+    def dns_threshold(self, value: int) -> None:
+        if not isinstance(value, int):
+            raise DNSConfigError("dns.threshold MUST integer")
+
+        if not value < 2 or value > 300:
+            raise DNSConfigError(
+                "dns.threshold out of bounds 2 < {value} <= 300,"
+            )
+
+        self._dns_threshold = value
+
+    @property
+    def dns_fallback(self) -> str:
+        return self._dns_fallback
+
+    @dns_fallback.setter
+    def dns_fallback(self, value: str) -> None:
+        if not isinstance(value, str):
+            raise DNSConfigError("dns.fallback MUST string")
+        else:
+            if value in FALLBACK_CONFIG_SET:
+                self._dns_fallback = value
+            else:
+                raise DNSConfigError("dns.fallback preset name is invalid - {value}")
+
+    @property
+    def network_stack(self) -> str:
+        return self._dns_fallback
+
+    @network_stack.setter
+    def network_stack(self, value: str) -> None:
+        if not isinstance(value, str):
+            raise DNSConfigError("network.stack MUST string")
+        else:
+            if value.lower() in ["ipv6", "6", "ipv4", "4", "dual", "both", "nat64"]:
+                self._network_stack = value.lower()
+            else:
+                raise DNSConfigError("network.stack is invalid - {value}")
+
+    # config parser
+    def config(self, config_file: Optional[str] = None) -> :
+        if config_file is None or config_file.strip() == "":
+            config_file = self._config_file
+
+        if config_file is not None:
+            logging.debug(f"Looking for config file - {config_file}")
+            cfg_path = Path(config_file)
+
+            if config_file is not None:
+                if not cfg_path.is_file():
+                    logging.fatal(
+                        f"{config_file} is not a file or symbolic link."
+                    )
+
+                try:
+                    logging.debug(f"Looking for config file - {config_file}")
+                    errorCount: int = 0
+                    cfg = configparser.ConfigParser()
+                    cfg.read(config_file)
+
+                    # Ensure api section is present
+                    sect = "api"
+                    if cfg.has_option(sect, "version"):
+                        try:
+                            self.api = cfg.getint(sect, "version")
+                        except DNSConfigError as e:
+                            errorCount += 1
+                            logging.error(e.message)
+                    else:
+                        logging.fatal("api.version is missing from configuration.")
+
+                    # Process unifi section
+                    sect = "unifi"
+                    if cfg.has_option(sect, "host"):
+
+
+                except configparser.Error:
+                    logging.fatal(
+                        f"Failed to parse config file - {config_file}"
+                    )
+                except ValueError as e:
+                    logging.fatal(
+                        "Configuration is invalid - %s",
+                        getattr(e, "message", repr(e)),
+                    )
+        else:
+            logging.warning("No config file defined, defaults are in place!")
+
+
+def is_debug_env_set() -> bool:
+    """
+    Checks if DEBUG environment variable is set to truthy
+    """
+    debug_env = os.environ.get("DEBUG", "0")
+    if (
+        debug_env.lower() == "true"
+        or debug_env.lower() == "1"
+        or debug_env.lower() == "yes"
+    ):
+        return True
+    return False
+
+
+def main(config: str, systemd: bool, verbose: bool = False) -> None:
+    """
+    Main Thread
+    """
+    if verbose or is_debug_env_set():
+        log_lvl = logging.DEBUG
+    else:
+        log_lvl = logging.INFO
+
+    # Only include date if not run with systemd flag
+    # journal will do timestamping for us already.
+    if systemd:
+        logging.basicConfig(
+            format="[%(levelname)-8s] %(message)s",
+            level=log_lvl,
+        )
+    else:
+        logging.basicConfig(
+            format="%(asctime)s  [%(levelname)-8s] %(message)s",
+            level=log_lvl,
+            datefmt="%Y-%m-%d %H:%M:%S%z",
+        )
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        add_help=True,
+    )
+    parser.add_argument(
+        "-c",
+        "--config",
+        default=None,
+        type=str,
+        metavar="CONFIG",
+        help="path to config file",
+    )
+    parser.add_argument(
+        "--systemd",
+        action="store_true",
+        help="enable systemd watchdog and notify",
+    )
+    args = parser.parse_args()

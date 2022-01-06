@@ -13,7 +13,7 @@ homepage: "https://udm-tools.prasadt.com/"
 
 arch: arm64
 platform: linux
-version: "0.10.0"
+version: "0.11.0"
 section: misc
 priority: optional
 

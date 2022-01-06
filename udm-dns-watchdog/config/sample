@@ -1,0 +1,62 @@
+[api]
+# Config API version. Only version 1 is supported at the moment.
+# This **MUST** be specified
+version = 1
+
+# Unifi Controller config
+[unifi]
+
+# Hostname or IP address of unifi controller
+# Defaults to localhost if not specified
+host = localhost
+
+# TLS Port for unifi controller.
+# Defaults to 443 if not specified
+port = 443
+
+# UniFi uses self signed certificates by default.
+# Thus this flag is required to trust those certificates.
+# If you are using certificates trusted by system certificate store
+# (say letsencrypt), feel free to set this to false or simply omit it.
+# If not specified, defaults to false.
+insecure = true
+
+# UniFi Site name. If not specified defaults to 'default'
+site = default
+
+# UniFi local user credentials
+# This must be local user, cloud access is not supported.
+# If not specified, environment variables
+# - `UNIFI_API_USER` and
+# - `UNIFI_API_PASSWORD` will be used instead
+# If using systemd, leave this unconfigured and use
+# /data/udm-dns-watchdog/credentials.env instead
+# username = replace-me-with-local-username
+# password = replace-me-with-local-password
+
+[dns]
+# Comma seperated list of IP addresses of DNS servers.
+# - Maximum of 2 IPv4 and 2 IPv6 addresses are allowed. (total of 4).
+# - IP addresses **MUST** be valid addresses
+# - IP addresses **MUST NOT BE** loopback or muticast addresses.
+# - IP addresses cannot be same as fallback pairs.
+servers = 10.33.33.33
+
+# Maximum consecutive allowed failures.
+# Minimum allowed value is 2 and maximum allowed value is 20.
+threshold = 2
+
+# Check interval in seconds
+# Minimum of 20 and maximum depends on how the binary is running.
+# - 300 for non-systemd execution or when systemd watchdog is not enabled.
+# - Derived from WATCHDOG_USEC when systemd watchdog is active.
+# - systemd watchdog derived value cannot exceed 300s.
+interval = 30
+
+# Name of the fallback preset
+# Defaults to cloudflare-family if not specified.
+fallback = cloudflare-family
+
+# Stack
+# IP Stack. This can be ipv4|4 or ipv6|6 or dual or auto.
+stack = auto

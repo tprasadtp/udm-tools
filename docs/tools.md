@@ -77,6 +77,7 @@ Commands:
     check-services    Checks all bundled services are active
     disable-analytics Configure anonymous Analytics (Experimental)
     libpod-settings   Set libpod, podman settings like log size etc.
+    ssh               SSH into host and run commands specified
     sync-ssh-keys     Syncs ssh keys from UniFi network settings
     shell             Drop in to Unifi OS Shell
 
@@ -84,7 +85,9 @@ Global Options:
   -h, --help          Display this help message
 
 Examples:
-  udmctl --help    Display help
+  udmctl --help                 Display help
+  udmctl ssh ubnt-tools hwaddr  Get Hardware address via ssh
+
 
 Environment:
   LOG_TO_STDOUT       Set this to 'true' to log to stdout.

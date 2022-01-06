@@ -255,11 +255,17 @@ Commands:
     install [FILE]        Install hook
     disable [HOOK]        Disable hook
     enable  [HOOK]        Enable hook
-    invoke-start [HOOK]   Invoke start on single hook
-    invoke-stop  [HOOK]   Invoke stop  on single hook
-    invoke-all start      Invoke start on all hooks
-    invoke-all stop       Invoke stop  on all hooks
-    help                  display this help message
+
+    invoke-start [HOOK]   Invoke start   on single hook
+    invoke-stop  [HOOK]   Invoke stop    on single hook
+    invoke-reload  [HOOK] Invoke reload  on single hook
+    invoke-restart [HOOK] Invoke restart on single hook
+
+    invoke-all start      Invoke start   on all hooks
+    invoke-all stop       Invoke stop    on all hooks
+    invoke-all reload     Invoke reload  on all hooks
+    invoke-all restart    Invoke restart on all hooks
+    help                  Display this help message
 
 Global Options:
   -h, --help              Display this help message
@@ -413,7 +419,7 @@ __invoke_hook_core() {
     esac
 
     case "$invoke_mode" in
-    start | stop)
+    start | stop | reload | restart)
         :
         ;;
     *)
@@ -447,7 +453,7 @@ __invoke_hook_all() {
     local invoke_timeout="${3:-300}"
 
     case "$invoke_mode" in
-    start | stop)
+    start | stop | restart | reload)
         :
         ;;
     *)
@@ -493,7 +499,7 @@ __invoke_hook_single() {
     local invoke_timeout="${3:-300}"
 
     case "$invoke_mode" in
-    start | stop)
+    start | stop | reload | restart)
         :
         ;;
     *)
@@ -868,6 +874,18 @@ main() {
             hookctl_enforce_ubios
             shift
             __invoke_hook_single "stop" "$1"
+            exit 0
+            ;;
+        invoke-reload | run-reload)
+            hookctl_enforce_ubios
+            shift
+            __invoke_hook_single "reload" "$1"
+            exit 0
+            ;;
+        invoke-restart | run-restart)
+            hookctl_enforce_ubios
+            shift
+            __invoke_hook_single "restart" "$1"
             exit 0
             ;;
         enable | e)

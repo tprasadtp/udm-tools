@@ -23,11 +23,17 @@ Commands:
     install [FILE]        Install hook
     disable [HOOK]        Disable hook
     enable  [HOOK]        Enable hook
-    invoke-start [HOOK]   Invoke start on single hook
-    invoke-stop  [HOOK]   Invoke stop  on single hook
-    invoke-all start      Invoke start on all hooks
-    invoke-all stop       Invoke stop  on all hooks
-    help                  display this help message
+
+    invoke-start [HOOK]   Invoke start   on single hook
+    invoke-stop  [HOOK]   Invoke stop    on single hook
+    invoke-reload  [HOOK] Invoke reload  on single hook
+    invoke-restart [HOOK] Invoke restart on single hook
+
+    invoke-all start      Invoke start   on all hooks
+    invoke-all stop       Invoke stop    on all hooks
+    invoke-all reload     Invoke reload  on all hooks
+    invoke-all restart    Invoke restart on all hooks
+    help                  Display this help message
 
 Global Options:
   -h, --help              Display this help message

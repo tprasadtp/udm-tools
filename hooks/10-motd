@@ -240,11 +240,13 @@ display_usage() {
     cat <<EOF
 udm-tools hook template
 
-Usage: ${SCRIPT} [OPTION] start|stop hook-type
+Usage: ${SCRIPT} [OPTION] COMAND
 
-Commands:
-  start               Starts this hook
-  stop                Stops this hook
+Command:
+  start               Run Start actions
+  stop                Run Stop actions
+  reload              Run reload actions
+  restart             Run restart action
 
 Options:
   -h, --help          Display this help message
@@ -285,6 +287,11 @@ __hook_restart() {
     __setup_motd
 }
 
+__hook_reload() {
+    log_info "Running hook reload - $SCRIPT"
+    log_warn "No action can be aplied for invoke-mode reload"
+}
+
 main() {
     # --help/-h flag handler
     case "${1}" in
@@ -300,6 +307,9 @@ main() {
         ;;
     stop)
         __hook_stop
+        ;;
+    reload)
+        __hook_reload
         ;;
     restart)
         __hook_restart

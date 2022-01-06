@@ -12,7 +12,7 @@ title: Hooks
 
     | Environment/Argument | Type | Description
     |---|---|---
-    | $1 | Invoke Type | Can be one of `start`, `stop` or `restart`. Please note that `restart` is not supported via `hookctl` yet.
+    | $1 | Invoke Type | Can be one of `start`, `stop`, `reload` or `restart`.
 - They are executed by systemd unit inside `unifi-os`
 - Hooks are executed in lexographical order
 - Hook failure **is** considered as unit failure
